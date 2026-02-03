@@ -49,12 +49,12 @@ const normalizeContact = (c: Contact): Contact => {
 };
 
 const sortByName = (a: Contact, b: Contact) => {
-  const lnA = (a.lastName || '').toLowerCase();
-  const lnB = (b.lastName || '').toLowerCase();
-  if (lnA !== lnB) return lnA.localeCompare(lnB);
   const fnA = (a.firstName || '').toLowerCase();
   const fnB = (b.firstName || '').toLowerCase();
   if (fnA !== fnB) return fnA.localeCompare(fnB);
+  const lnA = (a.lastName || '').toLowerCase();
+  const lnB = (b.lastName || '').toLowerCase();
+  if (lnA !== lnB) return lnA.localeCompare(lnB);
   return (a.id || '').localeCompare(b.id || '');
 };
 

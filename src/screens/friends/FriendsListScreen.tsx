@@ -8,6 +8,7 @@ import {
   Image,
   RefreshControl,
   Dimensions,
+  TextInput,
 } from 'react-native';
 import type { ViewStyle, TextStyle, ImageStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -51,13 +52,36 @@ export default function FriendsListScreen() {
     refetch
   } = useGetFriendsQuery({ userId: MOCK_USER_ID });
 
+  // Filter contacts based on search query
+  const getFilteredContacts = () => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) {
+      return contacts;
+    }
+    return contacts.filter(contact => {
+      const firstName = (contact.firstName || '').toLowerCase();
+      const lastName = (contact.lastName || '').toLowerCase();
+      const fullName = [firstName, lastName].filter(Boolean).join(' ');
+      // Match if first name, last name, or full name starts with query
+      return firstName.startsWith(query) || 
+             lastName.startsWith(query) || 
+             fullName.startsWith(query);
+    });
+  };
+
+  const filteredContacts = getFilteredContacts();
+
+  const clearSearch = () => {
+    setSearchQuery('');
+  };
+
   const sortByName = (a: Contact, b: Contact) => {
-    const lnA = (a.lastName || '').toLowerCase();
-    const lnB = (b.lastName || '').toLowerCase();
-    if (lnA !== lnB) return lnA.localeCompare(lnB);
     const fnA = (a.firstName || '').toLowerCase();
     const fnB = (b.firstName || '').toLowerCase();
     if (fnA !== fnB) return fnA.localeCompare(fnB);
+    const lnA = (a.lastName || '').toLowerCase();
+    const lnB = (b.lastName || '').toLowerCase();
+    if (lnA !== lnB) return lnA.localeCompare(lnB);
     return (a.id || '').localeCompare(b.id || '');
   };
 
@@ -171,6 +195,28 @@ export default function FriendsListScreen() {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+      
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchInputWrapper}>
+          <Ionicons name="search" size={20} color={colors.textMuted} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search friends..."
+            placeholderTextColor={colors.textMuted}
+            value={searchQuery}
+            onChangeText={(text) => setSearchQuery(text)}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
+              <Ionicons name="close-circle" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
     </View>
   );
 
@@ -217,7 +263,7 @@ export default function FriendsListScreen() {
           renderEmptyState()
         ) : (
           <FlatList
-            data={contacts}
+            data={filteredContacts}
             keyExtractor={(item) => item.id}
             renderItem={({ item, index }) => renderContactCard({ item, index })}
             refreshControl={
@@ -227,8 +273,17 @@ export default function FriendsListScreen() {
                 tintColor={colors.primary}
               />
             }
+            ListEmptyComponent={
+              searchQuery.trim() ? (
+                <View style={styles.noResultsContainer}>
+                  <Ionicons name="search-outline" size={48} color={colors.textMuted} />
+                  <Text style={styles.noResultsText}>No results</Text>
+                </View>
+              ) : null
+            }
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           />
         )}
       </SafeAreaView>
@@ -275,7 +330,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  
+
+  // Search
+  searchContainer: {
+    marginTop: spacing.sm,
+  },
+  searchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+  },
+  searchIcon: {
+    marginRight: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.textPrimary,
+    paddingVertical: spacing.md,
+  },
+  clearButton: {
+    padding: spacing.xs,
+  },
 
   // Contact cards
   contactCard: {
@@ -348,6 +428,20 @@ const styles = StyleSheet.create({
   // List
   listContainer: {
     paddingBottom: 120,
+    flexGrow: 1,
+  },
+
+  // No results
+  noResultsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xxxl,
+    gap: spacing.md,
+  },
+  noResultsText: {
+    ...typography.body,
+    color: colors.textMuted,
+    textAlign: 'center',
   },
 
   // Loading & empty states
