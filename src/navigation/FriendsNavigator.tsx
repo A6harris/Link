@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import FriendsListScreen from '../screens/friends/FriendsListScreen';
 import AddFriendScreen from '../screens/friends/AddFriendScreen';
 import FriendProfileScreen from '../screens/friends/FriendProfileScreen';
+import SyncContactsScreen from '../screens/friends/SyncContactsScreen';
 
 import type { FriendsStackParamList } from '../types';
 import { colors } from '../styles/theme';
@@ -59,6 +60,11 @@ export default function FriendsNavigator() {
             ) : null
           ),
         })}
+      />
+      <Stack.Screen 
+        name="SyncContacts" 
+        component={SyncContactsScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

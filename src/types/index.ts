@@ -108,21 +108,24 @@ export interface PaginatedResponse<T> {
 }
 
 // Navigation Types
+import { NavigatorScreenParams } from '@react-navigation/native';
+
 export type RootStackParamList = {
   Main: undefined;
   Auth: undefined;
-};
-
-export type MainTabParamList = {
-  Home: undefined;
-  Calendar: undefined;
-  Friends: undefined;
-  Events: undefined;
-  Settings: undefined;
 };
 
 export type FriendsStackParamList = {
   FriendsList: undefined;
   AddFriend: undefined;
   FriendProfile: { friendId: string; contactId?: never } | { contactId: string; friendId?: never };
+  SyncContacts: undefined;
+};
+
+export type MainTabParamList = {
+  Home: undefined;
+  Calendar: undefined;
+  Friends: NavigatorScreenParams<FriendsStackParamList>;
+  Events: undefined;
+  Settings: undefined;
 };

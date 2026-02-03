@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
 
 import HomeScreen from '../screens/home/HomeScreen';
 import CalendarScreen from '../screens/calendar/CalendarScreen';
@@ -11,6 +13,15 @@ import { FloatingTabBar } from '../components';
 
 import type { MainTabParamList } from '../types';
 import { colors } from '../styles/theme';
+
+// Screens where the tab bar should be hidden
+const SCREENS_WITHOUT_TAB_BAR = ['SyncContacts', 'AddFriend', 'FriendProfile'];
+
+// Helper to determine if tab bar should be shown
+function getTabBarVisibility(route: RouteProp<MainTabParamList, 'Friends'>): boolean {
+  const routeName = getFocusedRouteNameFromRoute(route) ?? 'FriendsList';
+  return !SCREENS_WITHOUT_TAB_BAR.includes(routeName);
+}
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -27,6 +38,9 @@ export default function MainNavigator() {
         <Tab.Screen 
           name="Friends" 
           component={FriendsNavigator}
+          options={({ route }) => ({
+            tabBarStyle: getTabBarVisibility(route) ? undefined : { display: 'none' },
+          })}
         />
         <Tab.Screen 
           name="Calendar" 

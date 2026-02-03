@@ -17,8 +17,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation, NavigationProp, CompositeNavigationProp } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import type { MainTabParamList, FriendsStackParamList } from '../../types';
+
+// Navigation type for Settings screen that can navigate to nested screens
+type SettingsNavigationProp = CompositeNavigationProp<
+  BottomTabNavigationProp<MainTabParamList, 'Settings'>,
+  NavigationProp<FriendsStackParamList>
+>;
 
 import {
   colors,
@@ -123,6 +132,7 @@ function sanitizeLocation(text: string): string {
 }
 
 export default function SettingsScreen() {
+  const navigation = useNavigation<SettingsNavigationProp>();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   
   // Profile state (would typically come from Redux/context)
@@ -360,6 +370,19 @@ export default function SettingsScreen() {
                 title="Profile Photo"
                 subtitle={profile.profileImage ? 'Change your photo' : 'Add a photo'}
                 onPress={() => setShowPhotoModal(true)}
+              />
+            </View>
+          </View>
+
+          {/* Contacts Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>CONTACTS</Text>
+            <View style={styles.sectionCard}>
+              <SettingsItem
+                icon="sync-outline"
+                title="Sync Contacts"
+                subtitle="Import contacts from your phone"
+                onPress={() => navigation.navigate('Friends', { screen: 'SyncContacts' })}
               />
             </View>
           </View>

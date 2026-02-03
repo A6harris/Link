@@ -62,6 +62,7 @@ export const gradients = {
   accent: ['#E91E63', '#EC407A', '#F48FB1'] as const,
   warm: ['#F59E0B', '#F97316', '#EF4444'] as const,
   cool: ['#06B6D4', '#0EA5E9', '#3B82F6'] as const,
+  success: ['#00BFA6', '#26C6A0', '#4DD0B0'] as const,
   surface: ['#FFFFFF', '#F8F9FC'] as const,
   overlay: ['transparent', 'rgba(0,0,0,0.7)'] as const,
   overlayTop: ['rgba(0,0,0,0.5)', 'transparent'] as const,

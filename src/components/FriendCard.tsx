@@ -67,11 +67,9 @@ export default function FriendCard({
         activeOpacity={0.95}
         style={styles.card}
       >
-        {/* Background Image */}
+        {/* Background Image or Placeholder */}
         <Image
-          source={{
-            uri: imageUri || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800',
-          }}
+          source={imageUri ? { uri: imageUri } : require('../../assets/default_photo.png')}
           style={styles.backgroundImage}
           resizeMode="cover"
         />

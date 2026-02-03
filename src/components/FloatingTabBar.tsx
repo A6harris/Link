@@ -113,6 +113,16 @@ export default function FloatingTabBar({ state, descriptors, navigation }: Botto
     }
   };
 
+  // Check if any route wants the tab bar hidden
+  const focusedRoute = state.routes[state.index];
+  const focusedDescriptor = descriptors[focusedRoute.key];
+  const tabBarStyle = focusedDescriptor.options.tabBarStyle as { display?: string } | undefined;
+  
+  // Hide tab bar if display is 'none'
+  if (tabBarStyle?.display === 'none') {
+    return null;
+  }
+
   // Tab order: Friends, Calendar, Home (center), Events, Settings
   // The state.routes already has them in this order from MainNavigator
   return (
