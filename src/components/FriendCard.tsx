@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Animated,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +27,7 @@ interface FriendCardProps {
   onPress?: () => void;
   onCall?: () => void;
   onMessage?: () => void;
+  onFaceTime?: () => void;
   onSnooze?: () => void;
   onContactedRecently?: () => void;
 }
@@ -39,6 +41,7 @@ export default function FriendCard({
   onPress,
   onCall,
   onMessage,
+  onFaceTime,
   onSnooze,
   onContactedRecently,
 }: FriendCardProps) {
@@ -130,6 +133,19 @@ export default function FriendCard({
                 <Ionicons name="chatbubble" size={20} color={colors.textLight} />
               </View>
             </TouchableOpacity>
+
+            {/* FaceTime button - show on iOS, or always show if onFaceTime is provided */}
+            {onFaceTime && (
+              <TouchableOpacity
+                onPress={onFaceTime}
+                activeOpacity={0.8}
+                style={styles.actionButton}
+              >
+                <View style={styles.actionCircle}>
+                  <Ionicons name="videocam" size={20} color={colors.textLight} />
+                </View>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               onPress={onSnooze}
