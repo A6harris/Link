@@ -9,6 +9,7 @@ export interface PhoneContact {
   lastName?: string;
   phone?: string;
   imageUri?: string;
+  birthday?: string; // ISO date string (YYYY-MM-DD)
   selected?: boolean;
 }
 
@@ -29,7 +30,26 @@ export async function checkContactsPermission(): Promise<boolean> {
 }
 
 /**
- * Fetch all contacts from the device
+ * Format a contact birthday to ISO date string (YYYY-MM-DD)
+ */
+function formatBirthday(birthday: Contacts.Date | undefined): string | undefined {
+  if (!birthday) return undefined;
+  
+  const { year, month, day } = birthday;
+  
+  // Need at least month and day for a meaningful birthday
+  if (month === undefined || day === undefined) return undefined;
+  
+  // Use a placeholder year if not provided (common for birthdays without year)
+  const yearStr = year !== undefined ? String(year).padStart(4, '0') : '1900';
+  const monthStr = String(month).padStart(2, '0');
+  const dayStr = String(day).padStart(2, '0');
+  
+  return `${yearStr}-${monthStr}-${dayStr}`;
+}
+
+/**
+ * Fetch all contacts from the device including birthday and photo
  */
 export async function fetchPhoneContacts(): Promise<PhoneContact[]> {
   const { data } = await Contacts.getContactsAsync({
@@ -38,6 +58,7 @@ export async function fetchPhoneContacts(): Promise<PhoneContact[]> {
       Contacts.Fields.LastName,
       Contacts.Fields.PhoneNumbers,
       Contacts.Fields.Image,
+      Contacts.Fields.Birthday,
     ],
     sort: Contacts.SortTypes.LastName,
   });
@@ -55,6 +76,7 @@ export async function fetchPhoneContacts(): Promise<PhoneContact[]> {
       lastName: contact.lastName || undefined,
       phone: contact.phoneNumbers?.[0]?.number || undefined,
       imageUri: contact.image?.uri || undefined,
+      birthday: formatBirthday(contact.birthday),
     }));
 }
 
@@ -77,10 +99,10 @@ export function convertToAppContact(phoneContact: PhoneContact): Contact {
     phone: phoneContact.phone,
     profileImage: phoneContact.imageUri,
     contactFrequency: DEFAULT_CONTACT_FREQUENCY,
-    birthday: null,
+    birthday: phoneContact.birthday || null,
     lastContacted: null,
     lastContactedCount: null,
-    notes: 'Imported from phone contacts',
+    notes: null,
     createdAt: new Date().toISOString(),
   };
 }

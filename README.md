@@ -6,24 +6,89 @@ Stay connected to the people who matter.
 
 ### Prerequisites
 
-- [nvm](https://github.com/nvm-sh/nvm) (Node Version Manager)
+- [nvm](https://github.com/nvm-sh/nvm) (Node Version Manager) - **Required**
 - Git
 - [Expo Go](https://expo.dev/client) app installed on your phone
 
-### Step 1: Clone the Repository
+### Step 1: Install nvm (if you don't have it)
+
+**On macOS with Homebrew:**
+
+```bash
+brew install nvm
+```
+
+After installation, create nvm's working directory:
+
+```bash
+mkdir ~/.nvm
+```
+
+Then add these lines to your `~/.zshrc`:
+
+```bash
+export NVM_DIR="$HOME/.nvm"
+[ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"
+[ -s "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" ] && \. "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm"
+```
+
+Reload your shell:
+
+```bash
+source ~/.zshrc
+```
+
+Verify nvm is installed:
+
+```bash
+nvm --version
+```
+
+> **Note:** nvm allows you to have different Node versions for different projects. The version you install here **only applies to this repository** when you're in this directory—it won't affect other projects or your global Node installation.
+
+### Step 2: Clone the Repository
 
 ```bash
 git clone https://github.com/yourusername/link.git
 cd link
 ```
 
-### Step 2: Install Dependencies
+### Step 3: Use the Correct Node Version
+
+This project requires **Node 18.x** (specified in `.nvmrc`). Install and use it:
+
+```bash
+nvm install 18
+nvm use 18
+```
+
+Verify you're using the correct version:
+
+```bash
+node -v  # Should show v18.x.x
+npm -v   # Should show v9.x.x or v10.x.x
+```
+
+> **Tip:** To automatically switch to the correct Node version when you `cd` into this directory, add this to your `~/.zshrc`:
+> ```bash
+> # Auto-switch Node version based on .nvmrc
+> autoload -U add-zsh-hook
+> load-nvmrc() {
+>   if [[ -f .nvmrc && -r .nvmrc ]]; then
+>     nvm use
+>   fi
+> }
+> add-zsh-hook chpwd load-nvmrc
+> load-nvmrc
+> ```
+
+### Step 4: Install Dependencies
 
 ```bash
 npm install
 ```
 
-### Step 3: Configure Environment Variables
+### Step 5: Configure Environment Variables
 
 ```bash
 cp .env.example .env
@@ -36,13 +101,13 @@ EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 ```
 
-### Step 4: Start the Development Server
+### Step 6: Start the Development Server
 
 ```bash
 npm start
 ```
 
-### Step 5: View the App
+### Step 7: View the App
 
 **On Physical Device:**
 

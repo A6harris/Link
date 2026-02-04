@@ -321,15 +321,8 @@ const HomeScreen: React.FC = () => {
     setDetailVisible(true);
   }, []);
 
-  // ===================================================================================
-  // FIXED: Homescreen action handlers now use topSuggestion (not selected)
-  // These are used by the FriendCard on the main homescreen
-  // ===================================================================================
-
-  const handleCallFromCard = useCallback(async () => {
-    if (!topSuggestion) return;
-    const contactId = topSuggestion.friendId;
-
+  // Helper to perform call action for a given contact ID
+  const performCall = useCallback(async (contactId: string, closeModal = false) => {
     try {
       const contacts: Contact[] = await loadContacts();
       const contact = contacts.find((c) => c.id === contactId);
@@ -350,22 +343,19 @@ const HomeScreen: React.FC = () => {
         return;
       }
 
-      // Mark as contacted today before making the call
+      // Mark as contacted today
       await markContactAsContactedToday(contactId);
       await Linking.openURL(phoneUrl);
-      
-      // Refresh suggestions after marking as contacted
-      await refresh();
     } catch (e) {
       console.error(e);
       Alert.alert('Something went wrong starting the call.');
+    } finally {
+      if (closeModal) setDetailVisible(false);
     }
-  }, [topSuggestion, refresh]);
+  }, []);
 
-  const handleMessageFromCard = useCallback(async () => {
-    if (!topSuggestion) return;
-    const contactId = topSuggestion.friendId;
-
+  // Helper to perform message action for a given contact ID
+  const performMessage = useCallback(async (contactId: string, closeModal = false) => {
     try {
       const contacts: Contact[] = await loadContacts();
       const contact = contacts.find((c) => c.id === contactId);
@@ -374,62 +364,45 @@ const HomeScreen: React.FC = () => {
         return;
       }
 
-      // Mark as contacted today before sending message
+      // Mark as contacted today
       await markContactAsContactedToday(contactId);
 
       const smsUrl = `sms:${contact.phone}`;
+      const supported = await Linking.canOpenURL(smsUrl);
+
+      if (!supported) {
+        Alert.alert('Cannot send a message on this device');
+        return;
+      }
+
+      // Update last contacted date when messaging
+      const nowIso = new Date().toISOString();
+      const updated: Contact = {
+        ...contact,
+        lastContacted: nowIso,
+        lastContactedCount: 'Today',
+      };
+
+      await updateContact(updated);
       await Linking.openURL(smsUrl);
-      
-      // Refresh suggestions after marking as contacted
-      await refresh();
     } catch (e) {
       console.error(e);
       Alert.alert('Something went wrong sending the message.');
+    } finally {
+      if (closeModal) setDetailVisible(false);
     }
-  }, [topSuggestion, refresh]);
+  }, []);
 
-  const handleFaceTimeFromCard = useCallback(async () => {
+  // Card action handlers (use topSuggestion)
+  const handleCardCall = useCallback(async () => {
     if (!topSuggestion) return;
-    const contactId = topSuggestion.friendId;
+    await performCall(topSuggestion.friendId, false);
+  }, [topSuggestion, performCall]);
 
-    try {
-      const contacts: Contact[] = await loadContacts();
-      const contact = contacts.find((c) => c.id === contactId);
-      if (!contact?.phone) {
-        Alert.alert('No phone number', 'Cannot start FaceTime without a phone number.');
-        return;
-      }
-
-      // FaceTime URL scheme - works on iOS, may not work on Android
-      const facetimeUrl = Platform.OS === 'ios' 
-        ? `facetime:${contact.phone}`
-        : `tel:${contact.phone}`; // Fallback to regular call on Android
-
-      const supported = await Linking.canOpenURL(facetimeUrl);
-
-      if (!supported) {
-        if (Platform.OS === 'ios') {
-          Alert.alert('Cannot start FaceTime', 'FaceTime is not available on this device.');
-        } else {
-          Alert.alert('FaceTime not available', 'FaceTime is only available on iOS devices. Starting a regular call instead.');
-          // Try regular call as fallback
-          const phoneUrl = `tel:${contact.phone}`;
-          await Linking.openURL(phoneUrl);
-        }
-        return;
-      }
-
-      // Mark as contacted today before starting FaceTime
-      await markContactAsContactedToday(contactId);
-      await Linking.openURL(facetimeUrl);
-      
-      // Refresh suggestions after marking as contacted
-      await refresh();
-    } catch (e) {
-      console.error(e);
-      Alert.alert('Something went wrong starting FaceTime.');
-    }
-  }, [topSuggestion, refresh]);
+  const handleCardMessage = useCallback(async () => {
+    if (!topSuggestion) return;
+    await performMessage(topSuggestion.friendId, false);
+  }, [topSuggestion, performMessage]);
 
   const handleContactedRecently = useCallback(async () => {
     if (!topSuggestion) return;
@@ -443,83 +416,35 @@ const HomeScreen: React.FC = () => {
         return;
       }
 
-      await markContactAsContactedToday(contactId);
-      
+      const nowIso = new Date().toISOString();
+      const updated: Contact = {
+        ...contact,
+        lastContacted: nowIso,
+        lastContactedCount: 'Today',
+      };
+
+      await updateContact(updated);
       Alert.alert(
         'Contact Updated',
         `${fullName(contact)} has been marked as contacted today.`,
         [{ text: 'OK' }]
       );
-      await refresh();
     } catch (e) {
       console.error(e);
       Alert.alert('Something went wrong updating the contact.');
     }
-  }, [topSuggestion, refresh]);
+  }, [topSuggestion]);
 
-  // ===================================================================================
-  // Modal action handlers - these use `selected` which is set when opening the modal
-  // ===================================================================================
-
-  const handleCallFromModal = useCallback(async () => {
+  // Modal action handlers (use selected)
+  const handleCallNow = useCallback(async () => {
     if (!selected) return;
-    const contactId = selected.friendId;
+    await performCall(selected.friendId, true);
+  }, [selected, performCall]);
 
-    try {
-      const contacts: Contact[] = await loadContacts();
-      const contact = contacts.find((c) => c.id === contactId);
-      if (!contact) {
-        Alert.alert('Contact not found');
-        return;
-      }
-      if (!contact.phone) {
-        Alert.alert('No phone number', `${fullName(contact)} has no phone on file.`);
-        return;
-      }
-
-      const phoneUrl = `tel:${contact.phone}`;
-      const supported = await Linking.canOpenURL(phoneUrl);
-
-      if (!supported) {
-        Alert.alert('Cannot start a call on this device');
-        return;
-      }
-
-      // Mark as contacted today
-      await markContactAsContactedToday(contactId);
-      await Linking.openURL(phoneUrl);
-    } catch (e) {
-      console.error(e);
-      Alert.alert('Something went wrong starting the call.');
-    } finally {
-      setDetailVisible(false);
-    }
-  }, [selected]);
-
-  const handleMessageFromModal = useCallback(async () => {
+  const handleMessage = useCallback(async () => {
     if (!selected) return;
-    const contactId = selected.friendId;
-
-    try {
-      const contacts: Contact[] = await loadContacts();
-      const contact = contacts.find((c) => c.id === contactId);
-      if (!contact?.phone) {
-        Alert.alert('No phone number', 'Cannot send a message without a phone number.');
-        return;
-      }
-
-      // Mark as contacted today
-      await markContactAsContactedToday(contactId);
-
-      const smsUrl = `sms:${contact.phone}`;
-      await Linking.openURL(smsUrl);
-    } catch (e) {
-      console.error(e);
-      Alert.alert('Something went wrong sending the message.');
-    } finally {
-      setDetailVisible(false);
-    }
-  }, [selected]);
+    await performMessage(selected.friendId, true);
+  }, [selected, performMessage]);
 
   const handleFaceTimeFromModal = useCallback(async () => {
     if (!selected) return;
@@ -624,9 +549,8 @@ const HomeScreen: React.FC = () => {
           lastContactedText={lastText}
           cadenceLabel={cadenceLabel}
           onPress={() => openSuggestionDetail(topSuggestion)}
-          onCall={handleCallFromCard}
-          onMessage={handleMessageFromCard}
-          onFaceTime={handleFaceTimeFromCard}
+          onCall={handleCardCall}
+          onMessage={handleCardMessage}
           onSnooze={() => generateNewSuggestion()}
           onContactedRecently={handleContactedRecently}
         />
@@ -808,14 +732,14 @@ const HomeScreen: React.FC = () => {
                 <GradientButton
                   title="Call Now"
                   icon="call"
-                  onPress={handleCallFromModal}
+                  onPress={handleCallNow}
                   fullWidth
                 />
                 <GradientButton
                   title="Send Message"
                   icon="chatbubble"
                   variant="outline"
-                  onPress={handleMessageFromModal}
+                  onPress={handleMessage}
                   fullWidth
                 />
                 {Platform.OS === 'ios' && (
