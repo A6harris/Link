@@ -13,6 +13,7 @@ import {
   Linking,
   Dimensions,
   Animated,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -165,6 +166,28 @@ const formatDate = () => {
   });
 };
 
+// Helper to mark a contact as contacted today
+const markContactAsContactedToday = async (contactId: string): Promise<Contact | null> => {
+  try {
+    const contacts: Contact[] = await loadContacts();
+    const contact = contacts.find((c) => c.id === contactId);
+    if (!contact) return null;
+
+    const nowIso = new Date().toISOString();
+    const updated: Contact = {
+      ...contact,
+      lastContacted: nowIso,
+      lastContactedCount: 'Today',
+    };
+
+    await updateContact(updated);
+    return updated;
+  } catch (e) {
+    console.error('Error marking contact as contacted:', e);
+    return null;
+  }
+};
+
 // ===================================================================================
 /**
  * useLocalConnectionSuggestions
@@ -298,7 +321,147 @@ const HomeScreen: React.FC = () => {
     setDetailVisible(true);
   }, []);
 
-  const handleCallNow = useCallback(async () => {
+  // ===================================================================================
+  // FIXED: Homescreen action handlers now use topSuggestion (not selected)
+  // These are used by the FriendCard on the main homescreen
+  // ===================================================================================
+
+  const handleCallFromCard = useCallback(async () => {
+    if (!topSuggestion) return;
+    const contactId = topSuggestion.friendId;
+
+    try {
+      const contacts: Contact[] = await loadContacts();
+      const contact = contacts.find((c) => c.id === contactId);
+      if (!contact) {
+        Alert.alert('Contact not found');
+        return;
+      }
+      if (!contact.phone) {
+        Alert.alert('No phone number', `${fullName(contact)} has no phone on file.`);
+        return;
+      }
+
+      const phoneUrl = `tel:${contact.phone}`;
+      const supported = await Linking.canOpenURL(phoneUrl);
+
+      if (!supported) {
+        Alert.alert('Cannot start a call on this device');
+        return;
+      }
+
+      // Mark as contacted today before making the call
+      await markContactAsContactedToday(contactId);
+      await Linking.openURL(phoneUrl);
+      
+      // Refresh suggestions after marking as contacted
+      await refresh();
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Something went wrong starting the call.');
+    }
+  }, [topSuggestion, refresh]);
+
+  const handleMessageFromCard = useCallback(async () => {
+    if (!topSuggestion) return;
+    const contactId = topSuggestion.friendId;
+
+    try {
+      const contacts: Contact[] = await loadContacts();
+      const contact = contacts.find((c) => c.id === contactId);
+      if (!contact?.phone) {
+        Alert.alert('No phone number', 'Cannot send a message without a phone number.');
+        return;
+      }
+
+      // Mark as contacted today before sending message
+      await markContactAsContactedToday(contactId);
+
+      const smsUrl = `sms:${contact.phone}`;
+      await Linking.openURL(smsUrl);
+      
+      // Refresh suggestions after marking as contacted
+      await refresh();
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Something went wrong sending the message.');
+    }
+  }, [topSuggestion, refresh]);
+
+  const handleFaceTimeFromCard = useCallback(async () => {
+    if (!topSuggestion) return;
+    const contactId = topSuggestion.friendId;
+
+    try {
+      const contacts: Contact[] = await loadContacts();
+      const contact = contacts.find((c) => c.id === contactId);
+      if (!contact?.phone) {
+        Alert.alert('No phone number', 'Cannot start FaceTime without a phone number.');
+        return;
+      }
+
+      // FaceTime URL scheme - works on iOS, may not work on Android
+      const facetimeUrl = Platform.OS === 'ios' 
+        ? `facetime:${contact.phone}`
+        : `tel:${contact.phone}`; // Fallback to regular call on Android
+
+      const supported = await Linking.canOpenURL(facetimeUrl);
+
+      if (!supported) {
+        if (Platform.OS === 'ios') {
+          Alert.alert('Cannot start FaceTime', 'FaceTime is not available on this device.');
+        } else {
+          Alert.alert('FaceTime not available', 'FaceTime is only available on iOS devices. Starting a regular call instead.');
+          // Try regular call as fallback
+          const phoneUrl = `tel:${contact.phone}`;
+          await Linking.openURL(phoneUrl);
+        }
+        return;
+      }
+
+      // Mark as contacted today before starting FaceTime
+      await markContactAsContactedToday(contactId);
+      await Linking.openURL(facetimeUrl);
+      
+      // Refresh suggestions after marking as contacted
+      await refresh();
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Something went wrong starting FaceTime.');
+    }
+  }, [topSuggestion, refresh]);
+
+  const handleContactedRecently = useCallback(async () => {
+    if (!topSuggestion) return;
+    const contactId = topSuggestion.friendId;
+
+    try {
+      const contacts: Contact[] = await loadContacts();
+      const contact = contacts.find((c) => c.id === contactId);
+      if (!contact) {
+        Alert.alert('Contact not found');
+        return;
+      }
+
+      await markContactAsContactedToday(contactId);
+      
+      Alert.alert(
+        'Contact Updated',
+        `${fullName(contact)} has been marked as contacted today.`,
+        [{ text: 'OK' }]
+      );
+      await refresh();
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Something went wrong updating the contact.');
+    }
+  }, [topSuggestion, refresh]);
+
+  // ===================================================================================
+  // Modal action handlers - these use `selected` which is set when opening the modal
+  // ===================================================================================
+
+  const handleCallFromModal = useCallback(async () => {
     if (!selected) return;
     const contactId = selected.friendId;
 
@@ -322,14 +485,8 @@ const HomeScreen: React.FC = () => {
         return;
       }
 
-      const nowIso = new Date().toISOString();
-      const updated: Contact = {
-        ...contact,
-        lastContacted: nowIso,
-        lastContactedCount: 'Today',
-      };
-
-      await updateContact(updated);
+      // Mark as contacted today
+      await markContactAsContactedToday(contactId);
       await Linking.openURL(phoneUrl);
     } catch (e) {
       console.error(e);
@@ -339,7 +496,7 @@ const HomeScreen: React.FC = () => {
     }
   }, [selected]);
 
-  const handleMessage = useCallback(async () => {
+  const handleMessageFromModal = useCallback(async () => {
     if (!selected) return;
     const contactId = selected.friendId;
 
@@ -351,44 +508,56 @@ const HomeScreen: React.FC = () => {
         return;
       }
 
+      // Mark as contacted today
+      await markContactAsContactedToday(contactId);
+
       const smsUrl = `sms:${contact.phone}`;
       await Linking.openURL(smsUrl);
     } catch (e) {
       console.error(e);
+      Alert.alert('Something went wrong sending the message.');
+    } finally {
+      setDetailVisible(false);
     }
   }, [selected]);
 
-  const handleContactedRecently = useCallback(async () => {
-    if (!topSuggestion) return;
-    const contactId = topSuggestion.friendId;
+  const handleFaceTimeFromModal = useCallback(async () => {
+    if (!selected) return;
+    const contactId = selected.friendId;
 
     try {
       const contacts: Contact[] = await loadContacts();
       const contact = contacts.find((c) => c.id === contactId);
-      if (!contact) {
-        Alert.alert('Contact not found');
+      if (!contact?.phone) {
+        Alert.alert('No phone number', 'Cannot start FaceTime without a phone number.');
         return;
       }
 
-      const nowIso = new Date().toISOString();
-      const updated: Contact = {
-        ...contact,
-        lastContacted: nowIso,
-        lastContactedCount: 'Today',
-      };
+      const facetimeUrl = Platform.OS === 'ios' 
+        ? `facetime:${contact.phone}`
+        : `tel:${contact.phone}`;
 
-      await updateContact(updated);
-      Alert.alert(
-        'Contact Updated',
-        `${fullName(contact)} has been marked as contacted today.`,
-        [{ text: 'OK' }]
-      );
-      await refresh();
+      const supported = await Linking.canOpenURL(facetimeUrl);
+
+      if (!supported) {
+        if (Platform.OS === 'ios') {
+          Alert.alert('Cannot start FaceTime', 'FaceTime is not available on this device.');
+        } else {
+          Alert.alert('FaceTime not available', 'FaceTime is only available on iOS devices.');
+        }
+        return;
+      }
+
+      // Mark as contacted today
+      await markContactAsContactedToday(contactId);
+      await Linking.openURL(facetimeUrl);
     } catch (e) {
       console.error(e);
-      Alert.alert('Something went wrong updating the contact.');
+      Alert.alert('Something went wrong starting FaceTime.');
+    } finally {
+      setDetailVisible(false);
     }
-  }, [topSuggestion, refresh]);
+  }, [selected]);
 
   const handleContactedRecentlyFromModal = useCallback(async () => {
     if (!selected) return;
@@ -402,14 +571,8 @@ const HomeScreen: React.FC = () => {
         return;
       }
 
-      const nowIso = new Date().toISOString();
-      const updated: Contact = {
-        ...contact,
-        lastContacted: nowIso,
-        lastContactedCount: 'Today',
-      };
-
-      await updateContact(updated);
+      await markContactAsContactedToday(contactId);
+      
       Alert.alert(
         'Contact Updated',
         `${fullName(contact)} has been marked as contacted today.`,
@@ -461,8 +624,9 @@ const HomeScreen: React.FC = () => {
           lastContactedText={lastText}
           cadenceLabel={cadenceLabel}
           onPress={() => openSuggestionDetail(topSuggestion)}
-          onCall={handleCallNow}
-          onMessage={handleMessage}
+          onCall={handleCallFromCard}
+          onMessage={handleMessageFromCard}
+          onFaceTime={handleFaceTimeFromCard}
           onSnooze={() => generateNewSuggestion()}
           onContactedRecently={handleContactedRecently}
         />
@@ -470,7 +634,7 @@ const HomeScreen: React.FC = () => {
     );
   };
 
-  // New: About This Friend section showing details about the suggested contact
+  // About This Friend section showing details about the suggested contact
   const renderAboutFriend = () => {
     if (!topSuggestion) return null;
 
@@ -542,31 +706,25 @@ const HomeScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* Birthday - only show if exists */}
+          {/* Birthday (if available) */}
           {formattedBirthday && (
             <View style={styles.aboutRow}>
-              <View style={[styles.aboutIcon, { backgroundColor: colors.warningSoft }]}>
-                <Ionicons name="gift-outline" size={18} color={colors.warning} />
+              <View style={[styles.aboutIcon, { backgroundColor: colors.accentSoft }]}>
+                <Ionicons name="gift-outline" size={18} color={colors.accent} />
               </View>
               <View style={styles.aboutContent}>
                 <Text style={styles.aboutLabel}>Birthday</Text>
                 <Text style={styles.aboutValue}>
                   {formattedBirthday}
                   {daysUntilBirthday !== null && daysUntilBirthday <= 30 && (
-                    <Text style={styles.birthdaySoon}>
-                      {daysUntilBirthday === 0 
-                        ? ' 🎂 Today!' 
-                        : daysUntilBirthday === 1 
-                          ? ' (Tomorrow!)' 
-                          : ` (in ${daysUntilBirthday} days)`}
-                    </Text>
+                    <Text style={{ color: colors.accent }}> ({daysUntilBirthday} days away)</Text>
                   )}
                 </Text>
               </View>
             </View>
           )}
 
-          {/* Notes - only show if exists */}
+          {/* Notes (if available) */}
           {notes && (
             <View style={styles.aboutRow}>
               <View style={[styles.aboutIcon, { backgroundColor: colors.surfaceMuted }]}>
@@ -584,29 +742,27 @@ const HomeScreen: React.FC = () => {
   };
 
   const renderEmptyState = () => (
-    <View style={styles.emptyState}>
-      <View style={styles.emptyContent}>
-        <View style={styles.emptyIconContainer}>
-          <LinearGradient
-            colors={[...gradients.primary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.emptyIconGradient}
-          >
-            <Ionicons name="people" size={48} color={colors.textLight} />
-          </LinearGradient>
-        </View>
-        <Text style={styles.emptyTitle}>No connections yet</Text>
-        <Text style={styles.emptySubtitle}>
-          Add your first contact to get personalized suggestions on who to reach out to.
-        </Text>
-        <GradientButton
-          title="Add Your First Contact"
-          icon="person-add"
-          onPress={navigateToAddFriend}
-          size="lg"
-        />
+    <View style={styles.emptyContainer}>
+      <View style={styles.emptyIconContainer}>
+        <LinearGradient
+          colors={[...gradients.primary]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.emptyIconGradient}
+        >
+          <Ionicons name="people" size={48} color={colors.textLight} />
+        </LinearGradient>
       </View>
+      <Text style={styles.emptyTitle}>No friends yet</Text>
+      <Text style={styles.emptyText}>
+        Start building your network by adding your first contact!
+      </Text>
+      <GradientButton
+        title="Add Your First Contact"
+        icon="person-add"
+        onPress={navigateToAddFriend}
+        size="lg"
+      />
     </View>
   );
 
@@ -652,16 +808,25 @@ const HomeScreen: React.FC = () => {
                 <GradientButton
                   title="Call Now"
                   icon="call"
-                  onPress={handleCallNow}
+                  onPress={handleCallFromModal}
                   fullWidth
                 />
                 <GradientButton
                   title="Send Message"
                   icon="chatbubble"
                   variant="outline"
-                  onPress={handleMessage}
+                  onPress={handleMessageFromModal}
                   fullWidth
                 />
+                {Platform.OS === 'ios' && (
+                  <GradientButton
+                    title="FaceTime"
+                    icon="videocam"
+                    variant="outline"
+                    onPress={handleFaceTimeFromModal}
+                    fullWidth
+                  />
+                )}
                 <GradientButton
                   title="Contacted Recently"
                   icon="checkmark-circle-outline"
@@ -800,29 +965,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Featured
+  // Featured section
   featuredSection: {
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
+    marginTop: spacing.md,
   },
 
-  // About Friend Section
+  // About section
   aboutSection: {
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xxl,
+    marginTop: spacing.xxl,
   },
   aboutCard: {
     backgroundColor: colors.surface,
-    borderRadius: radius.xxl,
+    borderRadius: radius.xl,
     padding: spacing.lg,
-    ...shadow.card,
+    ...shadow.sm,
   },
   aboutRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.surfaceBorder,
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
   },
   aboutIcon: {
     width: 36,
@@ -840,25 +1003,16 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xxs,
   },
   aboutValue: {
-    ...typography.body,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
-  birthdaySoon: {
-    color: colors.warning,
-    fontWeight: '600',
+    ...typography.label,
   },
 
   // Empty state
-  emptyState: {
+  emptyContainer: {
     flex: 1,
-    paddingHorizontal: spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xxxl,
     paddingTop: spacing.xxxxl,
-    alignItems: 'center',
-  },
-  emptyContent: {
-    alignItems: 'center',
-    maxWidth: 300,
   },
   emptyIconContainer: {
     marginBottom: spacing.xxl,
@@ -873,10 +1027,9 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     ...typography.heading,
-    textAlign: 'center',
     marginBottom: spacing.sm,
   },
-  emptySubtitle: {
+  emptyText: {
     ...typography.body,
     textAlign: 'center',
     marginBottom: spacing.xxl,
