@@ -76,23 +76,64 @@ type ConnectionSuggestion = {
   };
 };
 
-// ---------- Cadence weighting & cadence ----------
+// ---------- Cadence weighting (flattened for more variety) ----------
+// Base scores are compressed to allow randomness to surface different cadences
+// Spread is only 15 points (45-30) so jitter can easily overcome it
 const FREQUENCY_BASE_SCORE: Record<FrequencyKey, number> = {
-  weekly: 75,
-  biweekly: 60,
-  monthly: 48,
-  quarterly: 34,
-  biannual: 24,
-  annually: 12,
+  weekly: 45,
+  biweekly: 42,
+  monthly: 38,
+  quarterly: 35,
+  biannual: 32,
+  annually: 30,
 };
 
+// Urgency multipliers - affects how fast overdue contacts rise in priority
+// Kept moderate so urgency doesn't completely override variety
 const FREQUENCY_URGENCY_MULTIPLIER: Record<FrequencyKey, number> = {
-  weekly: 1.5,
-  biweekly: 1.2,
+  weekly: 1.2,
+  biweekly: 1.1,
   monthly: 1.0,
-  quarterly: 0.7,
-  biannual: 0.5,
-  annually: 0.25,
+  quarterly: 0.9,
+  biannual: 0.8,
+  annually: 0.7,
+};
+
+// ---------- Weighted Random Selection Helper ----------
+// Picks from candidates where higher scores = higher probability (not guaranteed)
+const weightedRandomSelect = <T extends { score: number }>(
+  items: T[],
+  count: number = 1
+): T[] => {
+  if (items.length === 0) return [];
+  if (items.length <= count) return items;
+
+  const selected: T[] = [];
+  const remaining = [...items];
+
+  for (let i = 0; i < count && remaining.length > 0; i++) {
+    // Normalize scores to positive values for weighting
+    const minScore = Math.min(...remaining.map((item) => item.score));
+    const weights = remaining.map((item) => Math.max(item.score - minScore + 10, 1));
+    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+
+    // Pick a random point in the total weight
+    let random = Math.random() * totalWeight;
+    let selectedIndex = 0;
+
+    for (let j = 0; j < weights.length; j++) {
+      random -= weights[j];
+      if (random <= 0) {
+        selectedIndex = j;
+        break;
+      }
+    }
+
+    selected.push(remaining[selectedIndex]);
+    remaining.splice(selectedIndex, 1);
+  }
+
+  return selected;
 };
 
 // ---------- Helpers ----------
@@ -198,6 +239,9 @@ function useLocalConnectionSuggestions() {
   const [suggestions, setSuggestions] = useState<ConnectionSuggestion[]>([]);
   const [allContacts, setAllContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(false);
+  
+  // Track the last suggested friend ID to avoid suggesting the same person twice in a row
+  const lastSuggestedFriendIdRef = useRef<string | null>(null);
 
   const scoreContact = useCallback((c: Contact) => {
     const frequency = c.contactFrequency ?? DEFAULT_CONTACT_FREQUENCY;
@@ -208,10 +252,17 @@ function useLocalConnectionSuggestions() {
     const cadence = config.days;
     const ratio = cadence ? ds / cadence : 0;
 
-    const approachingBoost = ratio < 1 ? ratio * 20 * urgencyScale : 0;
-    const overdueBoost = ratio >= 1 ? Math.min(ratio - 1, 2) * 35 * urgencyScale : 0;
-    const freshnessPenalty = ratio < 0.3 ? -10 * (1 - ratio / 0.3) : 0;
-    const jitter = Math.random() * 8;
+    // Approaching boost - slight increase as due date nears (reduced from 20 to 12)
+    const approachingBoost = ratio < 1 ? ratio * 12 * urgencyScale : 0;
+    
+    // Overdue boost - increases when past due, but capped and moderated (reduced from 35 to 20)
+    const overdueBoost = ratio >= 1 ? Math.min(ratio - 1, 1.5) * 20 * urgencyScale : 0;
+    
+    // Freshness penalty - recently contacted get slight penalty (reduced from -10 to -5)
+    const freshnessPenalty = ratio < 0.3 ? -5 * (1 - ratio / 0.3) : 0;
+    
+    // Large jitter for variety - this is the key to mixing cadences (increased from 8 to 30)
+    const jitter = Math.random() * 30;
 
     return baseScore + approachingBoost + overdueBoost + freshnessPenalty + jitter;
   }, []);
@@ -247,8 +298,33 @@ function useLocalConnectionSuggestions() {
         };
       });
 
+      // Use weighted random selection instead of strict sorting
+      // This ensures variety while still favoring higher-scored contacts
+      // First, sort to get a pool of reasonable candidates
       enriched.sort((a, b) => b.score - a.score);
-      setSuggestions(enriched.slice(0, 10));
+      
+      // Take top 15 as candidate pool, then weighted-randomly select 10
+      let candidatePool = enriched.slice(0, Math.min(15, enriched.length));
+      
+      // Exclude the last suggested friend from being top suggestion again
+      // (unless there's only 1 contact in the list)
+      const lastId = lastSuggestedFriendIdRef.current;
+      if (lastId && candidatePool.length > 1) {
+        // Remove the last suggested friend from consideration for top spot
+        candidatePool = candidatePool.filter((s) => s.friendId !== lastId);
+      }
+      
+      const selectedSuggestions = weightedRandomSelect(candidatePool, 10);
+      
+      // Re-sort selected by score for display order
+      selectedSuggestions.sort((a, b) => b.score - a.score);
+      
+      // Update the last suggested friend ID
+      if (selectedSuggestions.length > 0) {
+        lastSuggestedFriendIdRef.current = selectedSuggestions[0].friendId;
+      }
+      
+      setSuggestions(selectedSuggestions);
     } catch (e) {
       console.error(e);
       setSuggestions([]);
