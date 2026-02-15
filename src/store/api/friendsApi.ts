@@ -9,9 +9,9 @@ const normalizeFriendRecord = (record: any): Friend => ({
   userId: record.user_id ?? record.userId,
   friendId: record.friend_id ?? record.friendId,
   status: record.status,
-  contactFrequency: (record.contact_frequency ?? record.friendship_tier ?? DEFAULT_CONTACT_FREQUENCY) as ContactFrequency,
+  contactFrequency: (record.cadence ?? record.contact_frequency ?? DEFAULT_CONTACT_FREQUENCY) as ContactFrequency,
   birthday: record.birthday ?? record.friend_birthday ?? record.friend?.birthday ?? null,
-  lastContacted: record.last_contacted ?? record.lastContacted ?? undefined,
+  lastContacted: record.last_contacted_at ?? record.last_contacted ?? record.lastContacted ?? undefined,
   lastContactedCount: record.last_contacted_count ?? record.lastContactedCount ?? undefined,
   createdAt: record.created_at ?? record.createdAt,
   updatedAt: record.updated_at ?? record.updatedAt,
@@ -57,7 +57,7 @@ export const friendsApi = createApi({
           const { data, error } = await supabase
             .from('users')
             .select('*')
-            .or(`username.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`)
+            .or(`display_name.ilike.%${searchTerm}%,phone_number.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
             .limit(10);
 
           if (error) throw error;
@@ -79,7 +79,7 @@ export const friendsApi = createApi({
               user_id: userId,
               friend_id: friendId,
               status: 'pending',
-              friendship_tier: contactFrequency as any,
+              cadence: contactFrequency,
             })
             .select(`
               *,
@@ -125,7 +125,7 @@ export const friendsApi = createApi({
         try {
           const { data, error } = await supabase
             .from('friendships')
-            .update({ friendship_tier: contactFrequency as any })
+            .update({ cadence: contactFrequency })
             .eq('id', friendshipId)
             .select(`
               *,
@@ -148,7 +148,7 @@ export const friendsApi = createApi({
         try {
           const { data, error } = await supabase
             .from('friendships')
-            .update({ last_contacted: new Date().toISOString() })
+            .update({ last_contacted_at: new Date().toISOString() })
             .eq('id', friendshipId)
             .select(`
               *,

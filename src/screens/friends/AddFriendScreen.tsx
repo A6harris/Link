@@ -85,7 +85,7 @@ const dateToISOString = (date: Date): string => {
 
 export default function AddFriendScreen() {
   const navigation = useNavigation();
-  const [mode, setMode] = useState<AddMode>('manual');
+  const [mode, setMode] = useState<AddMode>('search');
   
   // Search mode state
   const [searchTerm, setSearchTerm] = useState('');
@@ -135,7 +135,7 @@ export default function AddFriendScreen() {
       
       Alert.alert(
         'Friend Request Sent!',
-        `You've sent a friend request to ${user.firstName} ${user.lastName}`,
+        `You've sent a friend request to ${user.display_name}`,
         [{ text: 'OK' }]
       );
     } catch (error) {
@@ -228,7 +228,7 @@ export default function AddFriendScreen() {
         >
           <View style={styles.avatarInner}>
             <Image 
-              source={{ uri: user.profileImage || 'https://via.placeholder.com/50' }}
+              source={{ uri: user.avatar_url || 'https://via.placeholder.com/50' }}
               style={styles.profileImageSmall}
             />
           </View>
@@ -237,9 +237,9 @@ export default function AddFriendScreen() {
       
       <View style={styles.userInfo}>
         <Text style={styles.userName}>
-          {user.firstName} {user.lastName}
+          {user.display_name}
         </Text>
-        <Text style={styles.username}>@{user.username}</Text>
+        <Text style={styles.username}>{user.phone_number || user.email || ''}</Text>
       </View>
       
       <TouchableOpacity 
@@ -321,19 +321,6 @@ export default function AddFriendScreen() {
   const renderModeToggle = () => (
     <View style={styles.modeToggle}>
       <TouchableOpacity
-        style={[styles.modeButton, mode === 'manual' && styles.modeButtonActive]}
-        onPress={() => setMode('manual')}
-      >
-        <Ionicons 
-          name="create-outline" 
-          size={18} 
-          color={mode === 'manual' ? colors.textLight : colors.textSecondary} 
-        />
-        <Text style={[styles.modeButtonText, mode === 'manual' && styles.modeButtonTextActive]}>
-          Manual Entry
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
         style={[styles.modeButton, mode === 'search' && styles.modeButtonActive]}
         onPress={() => setMode('search')}
       >
@@ -344,6 +331,19 @@ export default function AddFriendScreen() {
         />
         <Text style={[styles.modeButtonText, mode === 'search' && styles.modeButtonTextActive]}>
           Find User
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.modeButton, mode === 'manual' && styles.modeButtonActive]}
+        onPress={() => setMode('manual')}
+      >
+        <Ionicons 
+          name="create-outline" 
+          size={18} 
+          color={mode === 'manual' ? colors.textLight : colors.textSecondary} 
+        />
+        <Text style={[styles.modeButtonText, mode === 'manual' && styles.modeButtonTextActive]}>
+          Manual Entry
         </Text>
       </TouchableOpacity>
     </View>
@@ -495,7 +495,7 @@ export default function AddFriendScreen() {
           <Ionicons name="search" size={20} color={colors.textMuted} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by name or username..."
+            placeholder="Search by name, phone, or email..."
             placeholderTextColor={colors.textMuted}
             value={searchTerm}
             onChangeText={setSearchTerm}

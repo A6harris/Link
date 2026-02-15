@@ -1,30 +1,41 @@
 // User and Profile Types
 // src/types/index.ts
 
-export interface CallAvailability {
-  startTime: string; // Format: "HH:MM" (24-hour)
-  endTime: string;   // Format: "HH:MM" (24-hour)
-  daysAvailable: DayOfWeek[];
-}
-
-export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+// ────────────────────────────────────────────────────────────
+// User (matches Supabase `users` table from DATABASE.md)
+// ────────────────────────────────────────────────────────────
 
 export interface User {
   id: string;
-  email: string;
-  username: string;
-  firstName: string;
-  lastName: string;
-  phone?: string;
-  bio?: string;
-  location?: string;
-  profileImage?: string;
+  email?: string; // sourced from auth.users session, not stored in users table
+  phone_number?: string | null;
+  display_name: string;
+  avatar_url?: string | null;
   birthday?: string | null;
-  callAvailability?: CallAvailability;
-  createdAt: string;
-  updatedAt: string;
+  timezone?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
+// ────────────────────────────────────────────────────────────
+// Friendships (matches Supabase `friendships` table)
+// ────────────────────────────────────────────────────────────
+
+export interface Friendship {
+  id: string;
+  user_id: string;
+  friend_id: string;
+  status: 'pending' | 'accepted' | 'blocked';
+  cadence: ContactFrequency;
+  last_contacted_at?: string | null;
+  context_notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  // Joined relation (populated via Supabase joins)
+  friend?: User;
+}
+
+/** @deprecated Use Friendship instead — kept temporarily for backward compatibility */
 export interface Friend {
   id: string;
   userId: string;
@@ -39,7 +50,10 @@ export interface Friend {
   friend: User;
 }
 
-// Local contact stored on-device for suggestion engine and quick creation
+// ────────────────────────────────────────────────────────────
+// Local Contacts (stored on-device via AsyncStorage)
+// ────────────────────────────────────────────────────────────
+
 export interface Contact {
   id: string;
   firstName: string;
@@ -56,7 +70,10 @@ export interface Contact {
 
 export type ContactFrequency = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'biannual' | 'annually';
 
-// Events and Milestones
+// ────────────────────────────────────────────────────────────
+// Events and Milestones (matches Supabase `events` table)
+// ────────────────────────────────────────────────────────────
+
 export interface Event {
   id: string;
   title: string;
@@ -73,7 +90,22 @@ export interface Event {
 
 export type EventType = 'birthday' | 'anniversary' | 'achievement' | 'milestone' | 'holiday' | 'custom';
 
+// ────────────────────────────────────────────────────────────
+// Call Availability (local profile settings)
+// ────────────────────────────────────────────────────────────
+
+export interface CallAvailability {
+  startTime: string; // Format: "HH:MM" (24-hour)
+  endTime: string;   // Format: "HH:MM" (24-hour)
+  daysAvailable: DayOfWeek[];
+}
+
+export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+
+// ────────────────────────────────────────────────────────────
 // Connection Suggestions
+// ────────────────────────────────────────────────────────────
+
 export interface ConnectionSuggestion {
   id: string;
   friendId: string;
@@ -90,7 +122,10 @@ export interface ConnectionReason {
   weight: number;
 }
 
+// ────────────────────────────────────────────────────────────
 // API Response Types
+// ────────────────────────────────────────────────────────────
+
 export interface ApiResponse<T> {
   data: T;
   success: boolean;
@@ -107,12 +142,20 @@ export interface PaginatedResponse<T> {
   };
 }
 
+// ────────────────────────────────────────────────────────────
 // Navigation Types
+// ────────────────────────────────────────────────────────────
+
 import { NavigatorScreenParams } from '@react-navigation/native';
 
 export type RootStackParamList = {
   Main: undefined;
   Auth: undefined;
+};
+
+export type AuthStackParamList = {
+  Login: undefined;
+  SignUp: undefined;
 };
 
 export type FriendsStackParamList = {
