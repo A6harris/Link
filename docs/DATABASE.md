@@ -8,6 +8,7 @@ Link uses Supabase (PostgreSQL) with Row Level Security enabled.
 | Column | Type | Description |
 |--------|------|-------------|
 | id | UUID | Primary key (from auth.users) |
+| email | TEXT | Unique email address |
 | phone_number | TEXT | Unique phone number |
 | display_name | TEXT | User's display name |
 | avatar_url | TEXT | Profile photo URL |

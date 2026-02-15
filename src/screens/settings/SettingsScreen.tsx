@@ -38,7 +38,22 @@ import {
   shadow,
   avatarSizes,
 } from '../../styles/theme';
-import { User, CallAvailability, DayOfWeek } from '../../types';
+import { CallAvailability, DayOfWeek } from '../../types';
+
+// Local profile form shape — not yet wired to Supabase.
+// Will be replaced by User + Supabase profile queries in a future PR.
+interface ProfileFormData {
+  firstName: string;
+  lastName: string;
+  username: string;
+  email: string;
+  phone: string;
+  bio: string;
+  location: string;
+  birthday: string | null;
+  profileImage?: string;
+  callAvailability?: CallAvailability;
+}
 
 interface SettingsItemProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -136,7 +151,7 @@ export default function SettingsScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   
   // Profile state (would typically come from Redux/context)
-  const [profile, setProfile] = useState<Partial<User>>({
+  const [profile, setProfile] = useState<ProfileFormData>({
     firstName: '',
     lastName: '',
     username: '',
@@ -160,7 +175,7 @@ export default function SettingsScreen() {
   const [showBirthdayPicker, setShowBirthdayPicker] = useState(false);
 
   // Temporary edit states
-  const [editProfile, setEditProfile] = useState<Partial<User>>({});
+  const [editProfile, setEditProfile] = useState<Partial<ProfileFormData>>({});
   const [editAvailability, setEditAvailability] = useState<CallAvailability>(DEFAULT_CALL_AVAILABILITY);
 
   // Open edit profile modal

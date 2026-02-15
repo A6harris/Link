@@ -111,7 +111,7 @@ const calculateConnectionScore = (
 
   // Upcoming events scoring
   const friendEvents = upcomingEvents.filter(event => 
-    event.user_id === friend.friendId || event.title.toLowerCase().includes(friend.friend.firstName.toLowerCase())
+    event.user_id === friend.friendId || (friend.friend?.display_name && event.title.toLowerCase().includes(friend.friend.display_name.toLowerCase()))
   );
   
   friendEvents.forEach(event => {
@@ -257,13 +257,11 @@ export const connectionsApi = createApi({
             const { score, reasons } = calculateContactScore(contact, events || [], currentDate);
             const fakeUser: User = {
               id: contact.id,
-              email: '',
-              username: (contact.firstName + (contact.lastName ? contact.lastName[0] : '')).toLowerCase(),
-              firstName: contact.firstName,
-              lastName: contact.lastName || '',
-              profileImage: contact.profileImage,
-              createdAt: contact.createdAt,
-              updatedAt: contact.createdAt,
+              display_name: [contact.firstName, contact.lastName].filter(Boolean).join(' ') || 'Friend',
+              avatar_url: contact.profileImage ?? null,
+              birthday: contact.birthday ?? null,
+              created_at: contact.createdAt,
+              updated_at: contact.createdAt,
             };
 
             return {

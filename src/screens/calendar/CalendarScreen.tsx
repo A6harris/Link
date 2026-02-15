@@ -120,8 +120,7 @@ const CalendarScreen: React.FC = () => {
 
   const friendNameLookup = useMemo(() => {
     return friends.reduce<Record<string, string>>((acc, friend) => {
-      const name = [friend.friend.firstName, friend.friend.lastName].filter(Boolean).join(' ').trim();
-      acc[friend.friendId] = name;
+      acc[friend.friendId] = friend.friend?.display_name || 'Friend';
       return acc;
     }, {});
   }, [friends]);
@@ -183,7 +182,7 @@ const CalendarScreen: React.FC = () => {
 
     friends.forEach(friend => {
       const friendRecord: Friend = friend;
-      const name = [friendRecord.friend.firstName, friendRecord.friend.lastName].filter(Boolean).join(' ').trim();
+      const name = friendRecord.friend?.display_name || 'Friend';
       pushBirthday(friendRecord.friendId, name, friendRecord.birthday ?? friendRecord.friend.birthday, true);
     });
 
@@ -269,7 +268,7 @@ const CalendarScreen: React.FC = () => {
       const result = computeDays(friend.birthday ?? friend.friend.birthday);
       if (!result) return;
       if (result.diffDays <= 7) {
-        const name = [friend.friend.firstName, friend.friend.lastName].filter(Boolean).join(' ').trim();
+        const name = friend.friend?.display_name || 'Friend';
         entries.push({ name, inDays: result.diffDays, iso: result.iso });
       }
     });
