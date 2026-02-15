@@ -42,7 +42,7 @@ function formatBirthday(birthday: Contacts.Date | undefined): string | undefined
   
   // Use a placeholder year if not provided (common for birthdays without year)
   const yearStr = year !== undefined ? String(year).padStart(4, '0') : '1900';
-  const monthStr = String(month).padStart(2, '0');
+  const monthStr = String(month + 1).padStart(2, '0');
   const dayStr = String(day).padStart(2, '0');
   
   return `${yearStr}-${monthStr}-${dayStr}`;

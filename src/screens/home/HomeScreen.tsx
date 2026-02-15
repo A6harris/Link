@@ -474,6 +474,45 @@ const HomeScreen: React.FC = () => {
     if (!topSuggestion) return;
     await performCall(topSuggestion.friendId, false);
   }, [topSuggestion, performCall]);
+  
+  const handleCardFaceTime = useCallback(async () => {
+  if (!topSuggestion) return;
+  const contactId = topSuggestion.friendId;
+
+  try {
+    const contacts: Contact[] = await loadContacts();
+    const contact = contacts.find((c) => c.id === contactId);
+    if (!contact?.phone) {
+      Alert.alert('No phone number', 'Cannot start FaceTime without a phone number.');
+      return;
+    }
+
+    const facetimeUrl = Platform.OS === 'ios' 
+      ? `facetime:${contact.phone}`
+      : `tel:${contact.phone}`;
+
+    const supported = await Linking.canOpenURL(facetimeUrl);
+
+    if (!supported) {
+      if (Platform.OS === 'ios') {
+        Alert.alert('Cannot start FaceTime', 'FaceTime is not available on this device.');
+      } else {
+        Alert.alert('FaceTime not available', 'FaceTime is only available on iOS devices. Starting a regular call instead.');
+        const phoneUrl = `tel:${contact.phone}`;
+        await Linking.openURL(phoneUrl);
+      }
+      return;
+    }
+
+    // Mark as contacted today
+    await markContactAsContactedToday(contactId);
+    await Linking.openURL(facetimeUrl);
+    // REMOVED: await refresh() - to match behavior of call/message
+  } catch (e) {
+    console.error(e);
+    Alert.alert('Something went wrong starting FaceTime.');
+  }
+}, [topSuggestion]);  // Also removed 'refresh' from dependencies
 
   const handleCardMessage = useCallback(async () => {
     if (!topSuggestion) return;
@@ -626,6 +665,7 @@ const HomeScreen: React.FC = () => {
           cadenceLabel={cadenceLabel}
           onPress={() => openSuggestionDetail(topSuggestion)}
           onCall={handleCardCall}
+          onFaceTime={handleCardFaceTime}
           onMessage={handleCardMessage}
           onSnooze={() => generateNewSuggestion()}
           onContactedRecently={handleContactedRecently}
