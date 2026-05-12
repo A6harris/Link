@@ -1,5 +1,5 @@
 // src/screens/calendar/CalendarScreen.tsx
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -20,15 +20,9 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { colors, spacing, radius, typography, layout, shadow } from '../../styles/theme';
 import { loadContacts } from '../../utils/contactsStorage';
-import type { Contact, Event as CalendarEvent, EventType, Friend } from '../../types';
-import { useGetFriendsQuery } from '../../store/api/friendsApi';
-import {
-  useGetEventsQuery,
-  useCreateEventMutation,
-  useDeleteEventMutation,
-} from '../../store/api/eventsApi';
-
-const MOCK_USER_ID = 'user-1';
+import { getOrCreateLocalUserId } from '../../utils/localUser';
+import { useEvents } from '../../hooks/useEvents';
+import type { Contact, Event as CalendarEvent, EventType } from '../../types';
 
 type MarkedDateEntry = {
   marked?: boolean;
@@ -86,15 +80,14 @@ const CalendarScreen: React.FC = () => {
   const [contactQuery, setContactQuery] = useState('');
   const [contactPickerVisible, setContactPickerVisible] = useState(false);
   const [typePickerVisible, setTypePickerVisible] = useState(false);
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
 
-  const { data: friends = [], isLoading: isLoadingFriends } = useGetFriendsQuery({ userId: MOCK_USER_ID });
-  const {
-    data: manualEvents = [],
-    isFetching: isFetchingEvents,
-    refetch: refetchEvents,
-  } = useGetEventsQuery({ userId: MOCK_USER_ID });
-  const [createEvent, { isLoading: isCreatingEvent }] = useCreateEventMutation();
-  const [deleteEvent] = useDeleteEventMutation();
+  const [userId, setUserId] = useState<string | null>(null);
+  useEffect(() => {
+    getOrCreateLocalUserId().then(setUserId);
+  }, []);
+
+  const { events: manualEvents, isLoading: isFetchingEvents, createEvent, deleteEvent } = useEvents(userId ?? '');
 
   useFocusEffect(
     useCallback(() => {
@@ -118,22 +111,13 @@ const CalendarScreen: React.FC = () => {
     }, {});
   }, [contacts]);
 
-  const friendNameLookup = useMemo(() => {
-    return friends.reduce<Record<string, string>>((acc, friend) => {
-      acc[friend.friendId] = friend.friend?.display_name || 'Friend';
-      return acc;
-    }, {});
-  }, [friends]);
-
   const manualEventRows: ListedEvent[] = useMemo(() => {
     return manualEvents.map(event => ({
       ...event,
       relatedName:
-        (event.contactId && contactNameLookup[event.contactId]) ||
-        (event.friendId && friendNameLookup[event.friendId]) ||
-        undefined,
+        (event.contactId && contactNameLookup[event.contactId]) || undefined,
     }));
-  }, [manualEvents, contactNameLookup, friendNameLookup]);
+  }, [manualEvents, contactNameLookup]);
 
   const birthdayEvents: ListedEvent[] = useMemo(() => {
     const currentYear = visibleYear;
@@ -144,7 +128,6 @@ const CalendarScreen: React.FC = () => {
       ownerId: string,
       displayName: string,
       isoBirthday?: string | null,
-      isFriend?: boolean,
     ) => {
       if (!isoBirthday) return;
       // Parse as local time to avoid timezone issues with YYYY-MM-DD dates
@@ -163,10 +146,8 @@ const CalendarScreen: React.FC = () => {
           description: undefined,
           date: occurrence,
           type: 'birthday',
-          userId: MOCK_USER_ID,
-          contactId: isFriend ? null : ownerId,
-          friendId: isFriend ? ownerId : null,
-          friendshipId: null,
+          userId: userId ?? '',
+          contactId: ownerId,
           isRecurring: true,
           reminderEnabled: true,
           isBirthday: true,
@@ -177,17 +158,11 @@ const CalendarScreen: React.FC = () => {
 
     contacts.forEach(contact => {
       const name = [contact.firstName, contact.lastName].filter(Boolean).join(' ').trim() || 'Unnamed contact';
-      pushBirthday(contact.id, name, contact.birthday, false);
-    });
-
-    friends.forEach(friend => {
-      const friendRecord: Friend = friend;
-      const name = friendRecord.friend?.display_name || 'Friend';
-      pushBirthday(friendRecord.friendId, name, friendRecord.birthday ?? friendRecord.friend.birthday, true);
+      pushBirthday(contact.id, name, contact.birthday);
     });
 
     return occurrences;
-  }, [contacts, friends, visibleYear]);
+  }, [contacts, visibleYear, userId]);
 
   const combinedEvents: ListedEvent[] = useMemo(() => {
     const map = new Map<string, ListedEvent>();
@@ -264,17 +239,8 @@ const CalendarScreen: React.FC = () => {
       }
     });
 
-    friends.forEach(friend => {
-      const result = computeDays(friend.birthday ?? friend.friend.birthday);
-      if (!result) return;
-      if (result.diffDays <= 7) {
-        const name = friend.friend?.display_name || 'Friend';
-        entries.push({ name, inDays: result.diffDays, iso: result.iso });
-      }
-    });
-
     return entries.sort((a, b) => a.inDays - b.inDays);
-  }, [contacts, friends]);
+  }, [contacts]);
 
   const eventTypeOptions: { value: EventType; label: string }[] = useMemo(
     () => [
@@ -324,29 +290,28 @@ const CalendarScreen: React.FC = () => {
       return;
     }
 
+    setIsCreatingEvent(true);
     try {
-      const payload = {
+      await createEvent({
         title: eventTitle.trim(),
         description: eventDescription.trim() || undefined,
         type: eventType,
         date: selectedDate,
-        userId: MOCK_USER_ID,
         contactId: linkedContactId,
         reminderEnabled: true,
-      };
-
-      await createEvent(payload).unwrap();
+      });
       resetForm();
       setAddModalVisible(false);
-      refetchEvents();
       Alert.alert('Event added', 'Your event was saved to the calendar.');
     } catch (error: any) {
-      const message = error?.data?.error || error?.message || JSON.stringify(error);
+      const message = error?.message || JSON.stringify(error);
       Alert.alert('Unable to save', message);
+    } finally {
+      setIsCreatingEvent(false);
     }
   };
 
-  const handleDeleteEvent = async (eventId: string, userId: string) => {
+  const handleDeleteEvent = async (eventId: string) => {
     Alert.alert('Remove event', 'Are you sure you want to delete this event?', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -354,10 +319,9 @@ const CalendarScreen: React.FC = () => {
         style: 'destructive',
         onPress: async () => {
           try {
-            await deleteEvent({ id: eventId, userId }).unwrap();
-            refetchEvents();
+            await deleteEvent(eventId);
           } catch (error: any) {
-            const message = error?.data?.error || error?.message || JSON.stringify(error);
+            const message = error?.message || JSON.stringify(error);
             Alert.alert('Unable to delete', message);
           }
         },
@@ -368,17 +332,17 @@ const CalendarScreen: React.FC = () => {
   const formatDateHeading = (iso: string) => {
     const date = new Date(`${iso}T00:00:00`);
     if (Number.isNaN(date.getTime())) return iso;
-    
+
     const weekday = date.toLocaleDateString('en-US', { weekday: 'long' });
     const day = date.getDate();
     const year = date.getFullYear();
     const month = date.getMonth();
-    
+
     // Short months that don't need abbreviation: May, June, July
     const shortMonths = [4, 5, 6]; // May (4), June (5), July (6)
     const monthNames = ['Jan.', 'Feb.', 'March', 'April', 'May', 'June', 'July', 'Aug.', 'Sept.', 'Oct.', 'Nov.', 'Dec.'];
     const monthName = monthNames[month];
-    
+
     return `${weekday}, ${monthName} ${day}, ${year}`;
   };
 
@@ -445,7 +409,7 @@ const CalendarScreen: React.FC = () => {
         </View>
         {!item.isBirthday && (
           <TouchableOpacity
-            onPress={() => handleDeleteEvent(item.id, item.userId)}
+            onPress={() => handleDeleteEvent(item.id)}
             style={styles.eventActionBtn}
             accessibilityLabel="Delete event"
           >
@@ -518,7 +482,7 @@ const CalendarScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {renderViewToggle()}
 
-        {isLoadingFriends && isFetchingEvents ? (
+        {(isFetchingEvents || !userId) ? (
           <View style={styles.loadingWrapper}>
             <ActivityIndicator color={colors.primary} />
           </View>

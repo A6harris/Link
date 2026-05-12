@@ -18,7 +18,6 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { FriendsStackParamList } from '../../types';
 
-import { useGetFriendsQuery } from '../../store/api/friendsApi';
 import type { Contact } from '../../types';
 import { loadContacts } from '../../utils/contactsStorage';
 import {
@@ -38,19 +37,11 @@ import {
 import { GradientButton } from '../../components';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const MOCK_USER_ID = 'user-1';
-
 export default function FriendsListScreen() {
   const navigation = useNavigation<StackNavigationProp<FriendsStackParamList, 'FriendsList'>>();
   const [refreshing, setRefreshing] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-
-  const {
-    data: friends = [],
-    isLoading,
-    refetch
-  } = useGetFriendsQuery({ userId: MOCK_USER_ID });
 
   // Filter contacts based on search query
   const getFilteredContacts = () => {
@@ -87,7 +78,7 @@ export default function FriendsListScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refetch(), loadContactsFromStorage()]);
+    await loadContactsFromStorage();
     setRefreshing(false);
   };
 
@@ -255,11 +246,7 @@ export default function FriendsListScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {renderHeader()}
 
-        {isLoading && contacts.length === 0 ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading friends...</Text>
-          </View>
-        ) : contacts.length === 0 ? (
+        {contacts.length === 0 ? (
           renderEmptyState()
         ) : (
           <FlatList
@@ -444,15 +431,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Loading & empty states
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    ...typography.body,
-  },
+  // Empty state
   emptyContainer: {
     flex: 1,
     alignItems: 'center',

@@ -13,7 +13,28 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.PLACEHOLDER.link",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSContactsUsageDescription": "Link uses your contacts to help you stay in touch with the people you care about.",
+        "NSCameraUsageDescription": "Link uses the camera to set profile photos for your contacts.",
+        "NSPhotoLibraryUsageDescription": "Link accesses your photo library to set profile photos for your contacts.",
+        "NSPhotoLibraryAddUsageDescription": "Link saves photos to your library when you update a contact's profile picture.",
+        "NSCalendarsUsageDescription": "Link reads your calendar to help you track birthdays and anniversaries."
+      },
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+            "NSPrivacyAccessedAPITypeReasons": ["C617.1"]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          }
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {

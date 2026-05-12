@@ -7,7 +7,6 @@ import type { RouteProp } from '@react-navigation/native';
 import HomeScreen from '../screens/home/HomeScreen';
 import CalendarScreen from '../screens/calendar/CalendarScreen';
 import FriendsNavigator from './FriendsNavigator';
-import EventsScreen from '../screens/events/EventsScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import { FloatingTabBar } from '../components';
 
@@ -34,7 +33,7 @@ export default function MainNavigator() {
           headerShown: false,
         }}
       >
-        {/* Order: Friends, Calendar, Home (center), Events, Settings */}
+        {/* Order: Friends, Calendar, Home (center), Settings */}
         <Tab.Screen 
           name="Friends" 
           component={FriendsNavigator}
@@ -50,11 +49,7 @@ export default function MainNavigator() {
           name="Home" 
           component={HomeScreen}
         />
-        <Tab.Screen 
-          name="Events" 
-          component={EventsScreen}
-        />
-        <Tab.Screen 
+        <Tab.Screen
           name="Settings" 
           component={SettingsScreen}
         />

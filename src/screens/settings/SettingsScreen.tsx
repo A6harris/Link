@@ -40,8 +40,6 @@ import {
 } from '../../styles/theme';
 import { CallAvailability, DayOfWeek } from '../../types';
 
-// Local profile form shape — not yet wired to Supabase.
-// Will be replaced by User + Supabase profile queries in a future PR.
 interface ProfileFormData {
   firstName: string;
   lastName: string;

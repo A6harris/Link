@@ -6,7 +6,6 @@ import {
   TextInput,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
   Image,
   Alert,
   KeyboardAvoidingView,
@@ -19,10 +18,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
-import { useSearchUsersQuery, useAddFriendMutation } from '../../store/api/friendsApi';
-import type { User, Contact, ContactFrequency } from '../../types';
+import type { Contact, ContactFrequency } from '../../types';
 import {
   CONTACT_FREQUENCY_CONFIG,
   CONTACT_FREQUENCY_ORDER,
@@ -39,10 +38,6 @@ import {
 import { GradientButton } from '../../components';
 import { addContact } from '../../utils/contactsStorage';
 
-const MOCK_USER_ID = 'user-1';
-
-type AddMode = 'search' | 'manual';
-
 const FREQUENCY_OPTIONS = CONTACT_FREQUENCY_ORDER.map(value => ({
   value,
   label: CONTACT_FREQUENCY_CONFIG[value].label,
@@ -50,22 +45,15 @@ const FREQUENCY_OPTIONS = CONTACT_FREQUENCY_ORDER.map(value => ({
   color: CONTACT_FREQUENCY_CONFIG[value].color,
 }));
 
-// Format phone number as (XXX) XXX-XXXX
 const formatPhoneNumber = (text: string): string => {
-  // Remove all non-digits
   const digits = text.replace(/\D/g, '');
-  
-  // Limit to 10 digits
   const limited = digits.slice(0, 10);
-  
-  // Format based on length
   if (limited.length === 0) return '';
   if (limited.length <= 3) return `(${limited}`;
   if (limited.length <= 6) return `(${limited.slice(0, 3)}) ${limited.slice(3)}`;
   return `(${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6)}`;
 };
 
-// Format date for display
 const formatBirthdayDisplay = (date: Date | null): string => {
   if (!date) return '';
   return date.toLocaleDateString('en-US', {
@@ -75,7 +63,6 @@ const formatBirthdayDisplay = (date: Date | null): string => {
   });
 };
 
-// Convert Date to YYYY-MM-DD for storage
 const dateToISOString = (date: Date): string => {
   const year = date.getFullYear();
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -85,12 +72,7 @@ const dateToISOString = (date: Date): string => {
 
 export default function AddFriendScreen() {
   const navigation = useNavigation();
-  const [mode, setMode] = useState<AddMode>('search');
-  
-  // Search mode state
-  const [searchTerm, setSearchTerm] = useState('');
-  
-  // Manual mode state
+
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
@@ -101,16 +83,6 @@ export default function AddFriendScreen() {
   const [selectedFrequency, setSelectedFrequency] = useState<ContactFrequency>(DEFAULT_CONTACT_FREQUENCY);
   const [isSaving, setIsSaving] = useState(false);
   const [showFrequencyPicker, setShowFrequencyPicker] = useState(false);
-  
-  const {
-    data: searchResults = [],
-    isLoading: isSearching,
-    isFetching
-  } = useSearchUsersQuery(searchTerm, {
-    skip: searchTerm.length < 2,
-  });
-  
-  const [addFriend, { isLoading: isAdding }] = useAddFriendMutation();
 
   const handlePhoneChange = (text: string) => {
     setPhone(formatPhoneNumber(text));
@@ -125,28 +97,6 @@ export default function AddFriendScreen() {
     }
   }, []);
 
-  const handleAddFriend = async (user: User) => {
-    try {
-      await addFriend({
-        userId: MOCK_USER_ID,
-        friendId: user.id,
-        contactFrequency: selectedFrequency,
-      }).unwrap();
-      
-      Alert.alert(
-        'Friend Request Sent!',
-        `You've sent a friend request to ${user.display_name}`,
-        [{ text: 'OK' }]
-      );
-    } catch (error) {
-      Alert.alert(
-        'Error',
-        'Failed to send friend request. Please try again.',
-        [{ text: 'OK' }]
-      );
-    }
-  };
-
   const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
@@ -154,38 +104,40 @@ export default function AddFriendScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       quality: 0.7,
       allowsEditing: true,
       aspect: [1, 1],
     });
     if (!result.canceled && result.assets?.[0]?.uri) {
-      setProfileImage(result.assets[0].uri);
+      const picked = result.assets[0].uri;
+      try {
+        const dir = `${FileSystem.documentDirectory}profile_images/`;
+        await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+        const dest = `${dir}profile_${Date.now()}.jpg`;
+        await FileSystem.copyAsync({ from: picked, to: dest });
+        setProfileImage(dest);
+      } catch {
+        setProfileImage(picked);
+      }
     }
   };
 
   const handleSaveManualContact = async () => {
-    // Validate required fields
     if (!firstName.trim()) {
       Alert.alert('Required Field', 'Please enter a first name.');
       return;
     }
-
     if (!profileImage) {
       Alert.alert('Required Field', 'Please add a profile photo.');
       return;
     }
-
-    // Validate phone (required, must be complete)
     const phoneDigits = phone.replace(/\D/g, '');
     if (phoneDigits.length !== 10) {
       Alert.alert('Required Field', 'Please enter a complete 10-digit phone number.');
       return;
     }
-
-    // Convert birthday to ISO format if provided
     const normalizedBirthday: string | null = birthday ? dateToISOString(birthday) : null;
-
     setIsSaving(true);
     try {
       const newContact: Contact = {
@@ -199,9 +151,7 @@ export default function AddFriendScreen() {
         contactFrequency: selectedFrequency,
         createdAt: new Date().toISOString(),
       };
-
       await addContact(newContact);
-      
       Alert.alert(
         'Contact Saved!',
         `${firstName} ${lastName}`.trim() + ' has been added to your contacts.',
@@ -217,48 +167,6 @@ export default function AddFriendScreen() {
 
   const selectedFrequencyOption = FREQUENCY_OPTIONS.find(opt => opt.value === selectedFrequency);
 
-  const renderUser = ({ item: user }: { item: User }) => (
-    <View style={styles.userCard}>
-      <View style={styles.avatarContainer}>
-        <LinearGradient
-          colors={[...gradients.primary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.avatarRing}
-        >
-          <View style={styles.avatarInner}>
-            <Image 
-              source={{ uri: user.avatar_url || 'https://via.placeholder.com/50' }}
-              style={styles.profileImageSmall}
-            />
-          </View>
-        </LinearGradient>
-      </View>
-      
-      <View style={styles.userInfo}>
-        <Text style={styles.userName}>
-          {user.display_name}
-        </Text>
-        <Text style={styles.username}>{user.phone_number || user.email || ''}</Text>
-      </View>
-      
-      <TouchableOpacity 
-        style={styles.addUserButton}
-        onPress={() => handleAddFriend(user)}
-        disabled={isAdding}
-      >
-        <LinearGradient
-          colors={[...gradients.primary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.addUserButtonGradient}
-        >
-          <Ionicons name="person-add" size={18} color={colors.textLight} />
-        </LinearGradient>
-      </TouchableOpacity>
-    </View>
-  );
-
   const renderFrequencyPicker = () => (
     <Modal
       visible={showFrequencyPicker}
@@ -266,7 +174,7 @@ export default function AddFriendScreen() {
       animationType="fade"
       onRequestClose={() => setShowFrequencyPicker(false)}
     >
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.modalOverlay}
         activeOpacity={1}
         onPress={() => setShowFrequencyPicker(false)}
@@ -278,7 +186,7 @@ export default function AddFriendScreen() {
               <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
-          
+
           <ScrollView style={styles.pickerOptions} showsVerticalScrollIndicator={false}>
             {FREQUENCY_OPTIONS.map((option) => {
               const isSelected = selectedFrequency === option.value;
@@ -318,39 +226,8 @@ export default function AddFriendScreen() {
     </Modal>
   );
 
-  const renderModeToggle = () => (
-    <View style={styles.modeToggle}>
-      <TouchableOpacity
-        style={[styles.modeButton, mode === 'search' && styles.modeButtonActive]}
-        onPress={() => setMode('search')}
-      >
-        <Ionicons 
-          name="search-outline" 
-          size={18} 
-          color={mode === 'search' ? colors.textLight : colors.textSecondary} 
-        />
-        <Text style={[styles.modeButtonText, mode === 'search' && styles.modeButtonTextActive]}>
-          Find User
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.modeButton, mode === 'manual' && styles.modeButtonActive]}
-        onPress={() => setMode('manual')}
-      >
-        <Ionicons 
-          name="create-outline" 
-          size={18} 
-          color={mode === 'manual' ? colors.textLight : colors.textSecondary} 
-        />
-        <Text style={[styles.modeButtonText, mode === 'manual' && styles.modeButtonTextActive]}>
-          Manual Entry
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-
   const renderManualForm = () => (
-    <ScrollView 
+    <ScrollView
       style={styles.formScroll}
       contentContainerStyle={styles.formContent}
       showsVerticalScrollIndicator={false}
@@ -407,7 +284,7 @@ export default function AddFriendScreen() {
           placeholderTextColor={colors.textMuted}
           style={styles.textInput}
           keyboardType="number-pad"
-          maxLength={14} // (XXX) XXX-XXXX = 14 chars
+          maxLength={14}
         />
 
         {/* Birthday */}
@@ -425,7 +302,7 @@ export default function AddFriendScreen() {
           <View style={styles.datePickerContainer}>
             <View style={styles.datePickerHeader}>
               <Text style={styles.datePickerTitle}>Select Birthday</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setShowBirthdayPicker(false)}
                 style={styles.datePickerDone}
               >
@@ -446,7 +323,7 @@ export default function AddFriendScreen() {
 
         {/* Contact Frequency Dropdown */}
         <Text style={styles.fieldLabel}>How often to connect? *</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.dropdownButton}
           onPress={() => setShowFrequencyPicker(true)}
         >
@@ -487,96 +364,18 @@ export default function AddFriendScreen() {
     </ScrollView>
   );
 
-  const renderSearchMode = () => (
-    <View style={styles.searchModeContainer}>
-      {/* Search Input */}
-      <View style={styles.searchCard}>
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color={colors.textMuted} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by name, phone, or email..."
-            placeholderTextColor={colors.textMuted}
-            value={searchTerm}
-            onChangeText={setSearchTerm}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {searchTerm.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchTerm('')}>
-              <Ionicons name="close-circle" size={20} color={colors.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      {/* Search Results */}
-      <View style={styles.resultsSection}>
-        {searchTerm.length < 2 ? (
-          <View style={styles.instructionsContainer}>
-            <View style={styles.instructionsIconContainer}>
-              <LinearGradient
-                colors={[...gradients.primary]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.instructionsIconGradient}
-              >
-                <Ionicons name="search" size={40} color={colors.textLight} />
-              </LinearGradient>
-            </View>
-            <Text style={styles.instructionsTitle}>Find App Users</Text>
-            <Text style={styles.instructionsText}>
-              Search for friends who already use Link
-            </Text>
-          </View>
-        ) : isSearching || isFetching ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Searching...</Text>
-          </View>
-        ) : searchResults.length === 0 ? (
-          <View style={styles.emptyResults}>
-            <View style={styles.emptyIconContainer}>
-              <Ionicons name="person-outline" size={48} color={colors.textMuted} />
-            </View>
-            <Text style={styles.emptyResultsText}>No users found</Text>
-            <Text style={styles.emptyResultsSubtext}>
-              Try a different search or add them manually
-            </Text>
-            <TouchableOpacity 
-              style={styles.switchToManualButton}
-              onPress={() => setMode('manual')}
-            >
-              <Ionicons name="create-outline" size={18} color={colors.primary} />
-              <Text style={styles.switchToManualText}>Add Manually</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <FlatList
-            data={searchResults}
-            renderItem={renderUser}
-            keyExtractor={(user) => user.id}
-            showsVerticalScrollIndicator={false}
-            style={styles.resultsList}
-            contentContainerStyle={styles.resultsContent}
-          />
-        )}
-      </View>
-    </View>
-  );
-
   return (
     <View style={styles.container}>
       <LinearGradient
         colors={[colors.backgroundGradientStart, colors.backgroundGradientEnd] as const}
         style={StyleSheet.absoluteFill}
       />
-      
+
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
           style={styles.content}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerTop}>
               <TouchableOpacity
@@ -587,23 +386,16 @@ export default function AddFriendScreen() {
               </TouchableOpacity>
               <View style={styles.headerTitles}>
                 <Text style={styles.headerTitle}>Add Contact</Text>
-                <Text style={styles.headerSubtitle}>
-                  {mode === 'manual' ? 'Enter contact details' : 'Find friends on Link'}
-                </Text>
+                <Text style={styles.headerSubtitle}>Enter contact details</Text>
               </View>
               <View style={styles.headerSpacer} />
             </View>
-            
-            {/* Mode Toggle */}
-            {renderModeToggle()}
           </View>
 
-          {/* Content based on mode */}
-          {mode === 'manual' ? renderManualForm() : renderSearchMode()}
+          {renderManualForm()}
         </KeyboardAvoidingView>
       </SafeAreaView>
 
-      {/* Frequency Picker Modal */}
       {renderFrequencyPicker()}
     </View>
   );
@@ -654,35 +446,6 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     ...typography.body,
-  },
-
-  // Mode Toggle
-  modeToggle: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    padding: spacing.xs,
-    ...shadow.sm,
-  },
-  modeButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.sm,
-    borderRadius: radius.lg,
-    gap: spacing.xs,
-  },
-  modeButtonActive: {
-    backgroundColor: colors.primary,
-  },
-  modeButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  modeButtonTextActive: {
-    color: colors.textLight,
   },
 
   // Manual Form
@@ -767,7 +530,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
   },
 
-  // Date picker styles
+  // Date picker
   datePickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -823,7 +586,7 @@ const styles = StyleSheet.create({
     height: 200,
     backgroundColor: colors.surface,
   },
-  
+
   // Dropdown
   dropdownButton: {
     backgroundColor: colors.surfaceMuted,
@@ -850,7 +613,6 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
   },
-  
   saveButtonContainer: {
     marginTop: spacing.xxl,
   },
@@ -913,180 +675,5 @@ const styles = StyleSheet.create({
   pickerOptionDescription: {
     fontSize: 13,
     color: colors.textSecondary,
-  },
-
-  // Search Mode
-  searchModeContainer: {
-    flex: 1,
-  },
-  searchCard: {
-    backgroundColor: colors.surface,
-    marginHorizontal: spacing.xl,
-    marginTop: spacing.md,
-    borderRadius: radius.xxl,
-    padding: spacing.lg,
-    ...shadow.card,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radius.xl,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-  },
-  searchIcon: {
-    marginRight: spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: colors.textPrimary,
-  },
-
-  // Results
-  resultsSection: {
-    flex: 1,
-    marginTop: spacing.md,
-  },
-  resultsList: {
-    flex: 1,
-  },
-  resultsContent: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: 120,
-  },
-  userCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    borderRadius: radius.xl,
-    marginBottom: spacing.sm,
-    ...shadow.sm,
-  },
-  avatarContainer: {
-    marginRight: spacing.md,
-  },
-  avatarRing: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInner: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileImageSmall: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-  },
-  userInfo: {
-    flex: 1,
-  },
-  userName: {
-    ...typography.label,
-    fontSize: 16,
-    marginBottom: spacing.xxs,
-  },
-  username: {
-    ...typography.caption,
-  },
-  addUserButton: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    ...shadow.glow,
-  },
-  addUserButtonGradient: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Instructions & Empty states
-  instructionsContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.xxxl,
-  },
-  instructionsIconContainer: {
-    marginBottom: spacing.xl,
-  },
-  instructionsIconGradient: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow.glow,
-  },
-  instructionsTitle: {
-    ...typography.heading,
-    marginBottom: spacing.sm,
-  },
-  instructionsText: {
-    ...typography.body,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    ...typography.body,
-  },
-  emptyResults: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.xxxl,
-  },
-  emptyIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.surfaceMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-  },
-  emptyResultsText: {
-    ...typography.heading,
-    fontSize: 18,
-    marginBottom: spacing.xs,
-  },
-  emptyResultsSubtext: {
-    ...typography.body,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-  },
-  switchToManualButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.primarySoft,
-    borderRadius: radius.pill,
-  },
-  switchToManualText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary,
   },
 });

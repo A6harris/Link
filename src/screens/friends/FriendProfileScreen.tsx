@@ -11,6 +11,7 @@ import { BlurView } from 'expo-blur';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -32,12 +33,12 @@ import {
   animations,
 } from '../../styles/theme';
 import { GradientButton } from '../../components';
-import { useGetEventsQuery, useCreateEventMutation } from '../../store/api/eventsApi';
+import { useEvents } from '../../hooks/useEvents';
+import { getOrCreateLocalUserId } from '../../utils/localUser';
 import type { EventType } from '../../types';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const HERO_HEIGHT = SCREEN_HEIGHT * 0.35;
-const MOCK_USER_ID = 'user-1';
 
 type FriendProfileRouteProp = RouteProp<FriendsStackParamList, 'FriendProfile'>;
 type FriendProfileNavProp = StackNavigationProp<FriendsStackParamList, 'FriendProfile'>;
@@ -116,8 +117,13 @@ export default function FriendProfileScreen() {
   const [notes, setNotes] = useState('');
   const [profileImage, setProfileImage] = useState<string | undefined>(undefined);
 
-  const { data: events = [], refetch: refetchEvents } = useGetEventsQuery({ userId: MOCK_USER_ID });
-  const [createEvent, { isLoading: isCreatingEvent }] = useCreateEventMutation();
+  const [userId, setUserId] = useState<string | null>(null);
+  useEffect(() => {
+    getOrCreateLocalUserId().then(setUserId);
+  }, []);
+
+  const { events, createEvent } = useEvents(userId ?? '');
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
 
   // Event creation state
   const [showEventModal, setShowEventModal] = useState(false);
@@ -162,24 +168,25 @@ export default function FriendProfileScreen() {
       return;
     }
 
+    setIsCreatingEvent(true);
     try {
       await createEvent({
         title: eventTitle.trim(),
         date: dateToISOString(eventDate),
         type: eventType,
-        userId: MOCK_USER_ID,
         contactId: contact?.id,
         reminderEnabled: true,
-      }).unwrap();
+      });
 
       setEventTitle('');
       setEventDate(null);
       setEventType('milestone');
       setShowEventModal(false);
-      refetchEvents();
       Alert.alert('Event Added', 'The event has been linked to this contact.');
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'Failed to create event.');
+    } finally {
+      setIsCreatingEvent(false);
     }
   };
 
@@ -228,16 +235,23 @@ export default function FriendProfileScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       quality: 0.7,
       allowsEditing: true,
       aspect: [1, 1],
     });
-    // @ts-ignore
-    if (!result.canceled) {
-      // @ts-ignore
-      const uri = result.assets?.[0]?.uri || result.uri;
-      if (uri) setProfileImage(uri);
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      const picked = result.assets[0].uri;
+      try {
+        // Copy from cache to documents directory so the file persists across sessions
+        const dir = `${FileSystem.documentDirectory}profile_images/`;
+        await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+        const dest = `${dir}profile_${Date.now()}.jpg`;
+        await FileSystem.copyAsync({ from: picked, to: dest });
+        setProfileImage(dest);
+      } catch {
+        setProfileImage(picked);
+      }
     }
   };
 

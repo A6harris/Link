@@ -6,16 +6,19 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { store } from './src/store/store';
 import RootNavigator from './src/navigation/RootNavigator';
+import ErrorBoundary from './src/components/ErrorBoundary';
 
 export default function App() {
   return (
-    <Provider store={store}>
-      <SafeAreaProvider>
-        <NavigationContainer>
-          <RootNavigator />
-          <StatusBar style="auto" />
-        </NavigationContainer>
-      </SafeAreaProvider>
-    </Provider>
+    <ErrorBoundary>
+      <Provider store={store}>
+        <SafeAreaProvider>
+          <NavigationContainer>
+            <RootNavigator />
+            <StatusBar style="auto" />
+          </NavigationContainer>
+        </SafeAreaProvider>
+      </Provider>
+    </ErrorBoundary>
   );
 }

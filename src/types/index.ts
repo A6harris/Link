@@ -1,54 +1,4 @@
-// User and Profile Types
 // src/types/index.ts
-
-// ────────────────────────────────────────────────────────────
-// User (matches Supabase `users` table from DATABASE.md)
-// ────────────────────────────────────────────────────────────
-
-export interface User {
-  id: string;
-  email?: string; // sourced from auth.users session, not stored in users table
-  phone_number?: string | null;
-  display_name: string;
-  avatar_url?: string | null;
-  birthday?: string | null;
-  timezone?: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
-// ────────────────────────────────────────────────────────────
-// Friendships (matches Supabase `friendships` table)
-// ────────────────────────────────────────────────────────────
-
-export interface Friendship {
-  id: string;
-  user_id: string;
-  friend_id: string;
-  status: 'pending' | 'accepted' | 'blocked';
-  cadence: ContactFrequency;
-  last_contacted_at?: string | null;
-  context_notes?: string | null;
-  created_at?: string;
-  updated_at?: string;
-  // Joined relation (populated via Supabase joins)
-  friend?: User;
-}
-
-/** @deprecated Use Friendship instead — kept temporarily for backward compatibility */
-export interface Friend {
-  id: string;
-  userId: string;
-  friendId: string;
-  status: 'pending' | 'accepted' | 'blocked';
-  contactFrequency: ContactFrequency;
-  birthday?: string | null;
-  lastContacted?: string;
-  lastContactedCount?: string;
-  createdAt: string;
-  updatedAt: string;
-  friend: User;
-}
 
 // ────────────────────────────────────────────────────────────
 // Local Contacts (stored on-device via AsyncStorage)
@@ -71,7 +21,7 @@ export interface Contact {
 export type ContactFrequency = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'biannual' | 'annually';
 
 // ────────────────────────────────────────────────────────────
-// Events and Milestones (matches Supabase `events` table)
+// Events and Milestones
 // ────────────────────────────────────────────────────────────
 
 export interface Event {
@@ -82,8 +32,6 @@ export interface Event {
   type: EventType;
   userId: string;
   contactId?: string | null;
-  friendId?: string | null;
-  friendshipId?: string | null;
   isRecurring?: boolean;
   reminderEnabled?: boolean;
 }
@@ -109,7 +57,6 @@ export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'frida
 export interface ConnectionSuggestion {
   id: string;
   friendId: string;
-  friend: User;
   score: number;
   reasons: ConnectionReason[];
   suggestedAt: string;
@@ -123,26 +70,6 @@ export interface ConnectionReason {
 }
 
 // ────────────────────────────────────────────────────────────
-// API Response Types
-// ────────────────────────────────────────────────────────────
-
-export interface ApiResponse<T> {
-  data: T;
-  success: boolean;
-  message?: string;
-}
-
-export interface PaginatedResponse<T> {
-  data: T[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    hasMore: boolean;
-  };
-}
-
-// ────────────────────────────────────────────────────────────
 // Navigation Types
 // ────────────────────────────────────────────────────────────
 
@@ -150,12 +77,6 @@ import { NavigatorScreenParams } from '@react-navigation/native';
 
 export type RootStackParamList = {
   Main: undefined;
-  Auth: undefined;
-};
-
-export type AuthStackParamList = {
-  Login: undefined;
-  SignUp: undefined;
 };
 
 export type FriendsStackParamList = {
@@ -169,6 +90,5 @@ export type MainTabParamList = {
   Home: undefined;
   Calendar: undefined;
   Friends: NavigatorScreenParams<FriendsStackParamList>;
-  Events: undefined;
   Settings: undefined;
 };

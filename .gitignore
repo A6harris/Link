@@ -42,3 +42,14 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+#claude_code
+.claudeignore
+CLAUDE.md
+claude.md
+C:\LINK_app\claude.md
+#nvm-noinstall
+.nvm-noinstall/
+nvm-noinstall.zip
+claudemd.txt
+C:\LINK_app\.claude\settings.json
