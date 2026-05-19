@@ -2,6 +2,7 @@
 import * as Contacts from 'expo-contacts';
 import type { Contact } from '../types';
 import { DEFAULT_CONTACT_FREQUENCY } from '../constants/contactFrequency';
+import { generateId } from './localUser';
 
 export interface PhoneContact {
   id: string;
@@ -71,7 +72,7 @@ export async function fetchPhoneContacts(): Promise<PhoneContact[]> {
       contact.phoneNumbers.length > 0
     )
     .map(contact => ({
-      id: contact.id || `phone-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      id: contact.id || `phone-${Date.now()}-${generateId()}`,
       firstName: contact.firstName || '',
       lastName: contact.lastName || undefined,
       phone: contact.phoneNumbers?.[0]?.number || undefined,
@@ -93,7 +94,7 @@ export function normalizePhoneNumber(phone?: string | null): string {
  */
 export function convertToAppContact(phoneContact: PhoneContact): Contact {
   return {
-    id: `imported-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    id: `imported-${Date.now()}-${generateId()}`,
     firstName: phoneContact.firstName,
     lastName: phoneContact.lastName,
     phone: phoneContact.phone,

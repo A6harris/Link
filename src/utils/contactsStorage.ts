@@ -87,9 +87,14 @@ export async function saveContacts(contacts: Contact[]): Promise<void> {
 export async function addContact(contact: Contact): Promise<void> {
   const contacts = await loadContacts();
   const newContact = normalizeContact(contact);
-  // You can unshift or keep list sorted; since we sort on save, either is fine.
   contacts.unshift(newContact);
   await saveContacts(contacts);
+}
+
+export async function addContacts(newContacts: Contact[]): Promise<void> {
+  const existing = await loadContacts();
+  const normalized = newContacts.map(normalizeContact);
+  await saveContacts([...normalized, ...existing]);
 }
 
 export async function removeContact(contactId: string): Promise<void> {

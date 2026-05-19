@@ -12,6 +12,7 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import { resizeProfileImage } from '../../utils/imageUtils';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -220,13 +221,9 @@ export default function FriendProfileScreen() {
   }, [contact]);
 
   const relatedEvents = useMemo(() => {
-    if (!contact && !friendId) return [] as CalendarEvent[];
-    return events.filter(event => {
-      if (contactId) return event.contactId === contactId;
-      if (friendId) return event.friendId === friendId || event.friendshipId === friendId;
-      return false;
-    });
-  }, [events, contact, contactId, friendId]);
+    if (!contact) return [] as CalendarEvent[];
+    return events.filter(event => event.contactId === contact.id);
+  }, [events, contact]);
 
   const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -243,14 +240,14 @@ export default function FriendProfileScreen() {
     if (!result.canceled && result.assets?.[0]?.uri) {
       const picked = result.assets[0].uri;
       try {
-        // Copy from cache to documents directory so the file persists across sessions
+        const resized = await resizeProfileImage(picked);
         const dir = `${FileSystem.documentDirectory}profile_images/`;
         await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
         const dest = `${dir}profile_${Date.now()}.jpg`;
-        await FileSystem.copyAsync({ from: picked, to: dest });
+        await FileSystem.copyAsync({ from: resized, to: dest });
         setProfileImage(dest);
       } catch {
-        setProfileImage(picked);
+        Alert.alert('Could Not Save Photo', 'Failed to copy the image. Please try again.');
       }
     }
   };
@@ -279,9 +276,13 @@ export default function FriendProfileScreen() {
       notes: notes || null,
       profileImage,
     };
-    await updateContact(updated);
-    setContact(updated);
-    Alert.alert('Saved', 'Contact updated successfully.');
+    try {
+      await updateContact(updated);
+      setContact(updated);
+      Alert.alert('Saved', 'Contact updated successfully.');
+    } catch {
+      Alert.alert('Error', 'Failed to save contact. Please try again.');
+    }
   };
 
   const onDelete = () => {
@@ -291,8 +292,12 @@ export default function FriendProfileScreen() {
       {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
-          await removeContact(contact.id);
-          navigation.goBack();
+          try {
+            await removeContact(contact.id);
+            navigation.goBack();
+          } catch {
+            Alert.alert('Error', 'Failed to delete contact. Please try again.');
+          }
         }
       }
     ]);

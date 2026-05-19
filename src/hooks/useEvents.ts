@@ -12,11 +12,19 @@ export function useEvents(userId: string) {
   const [isLoading, setIsLoading] = useState(true);
 
   const load = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
-    const list = await loadEvents(userId);
-    setEvents(list);
-    setIsLoading(false);
+    try {
+      const list = await loadEvents(userId);
+      setEvents(list);
+    } catch {
+      setEvents([]);
+    } finally {
+      setIsLoading(false);
+    }
   }, [userId]);
 
   useEffect(() => {
@@ -24,20 +32,32 @@ export function useEvents(userId: string) {
   }, [load]);
 
   const createEvent = async (payload: Partial<Event>): Promise<Event> => {
-    const event = await addEvent(userId, { ...payload, userId } as Event);
-    setEvents(prev => [event, ...prev]);
-    return event;
+    try {
+      const event = await addEvent(userId, { ...payload, userId } as Event);
+      setEvents(prev => [event, ...prev]);
+      return event;
+    } catch (error: any) {
+      throw new Error(error?.message || 'Failed to save event.');
+    }
   };
 
   const updateEvent = async (id: string, changes: Partial<Event>): Promise<Event | null> => {
-    const updated = await updateEventInStorage(userId, id, changes);
-    if (updated) setEvents(prev => prev.map(e => (e.id === id ? updated : e)));
-    return updated;
+    try {
+      const updated = await updateEventInStorage(userId, id, changes);
+      if (updated) setEvents(prev => prev.map(e => (e.id === id ? updated : e)));
+      return updated;
+    } catch (error: any) {
+      throw new Error(error?.message || 'Failed to update event.');
+    }
   };
 
   const deleteEvent = async (id: string): Promise<void> => {
-    await removeEvent(userId, id);
-    setEvents(prev => prev.filter(e => e.id !== id));
+    try {
+      await removeEvent(userId, id);
+      setEvents(prev => prev.filter(e => e.id !== id));
+    } catch (error: any) {
+      throw new Error(error?.message || 'Failed to delete event.');
+    }
   };
 
   return { events, isLoading, refetch: load, createEvent, updateEvent, deleteEvent };

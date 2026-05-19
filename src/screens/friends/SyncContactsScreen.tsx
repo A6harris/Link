@@ -1,5 +1,5 @@
 // src/screens/friends/SyncContactsScreen.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -23,7 +23,7 @@ import {
   convertToAppContact,
   normalizePhoneNumber,
 } from '../../utils/phoneContacts';
-import { loadContacts, addContact } from '../../utils/contactsStorage';
+import { loadContacts, addContacts } from '../../utils/contactsStorage';
 import { GradientButton } from '../../components';
 import {
   colors,
@@ -43,34 +43,25 @@ export default function SyncContactsScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Filter contacts based on search query - matches names starting with query
-  const getFilteredContacts = () => {
+  const filteredContacts = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
-    if (!query) {
-      return phoneContacts;
-    }
+    if (!query) return phoneContacts;
     return phoneContacts.filter(contact => {
       const firstName = (contact.firstName || '').toLowerCase();
       const lastName = (contact.lastName || '').toLowerCase();
       const fullName = [firstName, lastName].filter(Boolean).join(' ');
-      // Match if first name, last name, or full name starts with query
-      return firstName.startsWith(query) || 
-             lastName.startsWith(query) || 
-             fullName.startsWith(query);
+      return firstName.startsWith(query) || lastName.startsWith(query) || fullName.startsWith(query);
     });
-  };
-  
-  const filteredContacts = getFilteredContacts();
+  }, [phoneContacts, searchQuery]);
 
-  useEffect(() => {
-    loadPhoneContacts();
-  }, []);
+  const [showPermissionPrompt, setShowPermissionPrompt] = useState(true);
 
   const loadPhoneContacts = async () => {
     setIsLoading(true);
     
     const hasPermission = await requestContactsPermission();
     if (!hasPermission) {
+      setIsLoading(false);
       Alert.alert(
         'Permission Required',
         'Please allow access to your contacts in Settings to sync them with Link.',
@@ -148,12 +139,10 @@ export default function SyncContactsScreen() {
 
     setIsSaving(true);
     try {
-      const contactsToImport = phoneContacts.filter(c => selectedIds.has(c.id));
-      
-      for (const phoneContact of contactsToImport) {
-        const appContact = convertToAppContact(phoneContact);
-        await addContact(appContact);
-      }
+      const contactsToImport = phoneContacts
+        .filter(c => selectedIds.has(c.id))
+        .map(convertToAppContact);
+      await addContacts(contactsToImport);
 
       Alert.alert(
         'Success!',
@@ -255,7 +244,42 @@ export default function SyncContactsScreen() {
           <View style={styles.headerSpacer} />
         </View>
 
-        {isLoading ? (
+        {showPermissionPrompt ? (
+          <View style={styles.permissionContainer}>
+            <View style={styles.permissionIconContainer}>
+              <LinearGradient
+                colors={[...gradients.primary]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.permissionIconGradient}
+              >
+                <Ionicons name="people" size={48} color={colors.textLight} />
+              </LinearGradient>
+            </View>
+            <Text style={styles.permissionTitle}>Import Your Contacts</Text>
+            <Text style={styles.permissionBody}>
+              Link will read your phone contacts so you can choose people to stay in touch with.
+              {'\n\n'}
+              Your contacts are stored locally on your device and never uploaded anywhere.
+            </Text>
+            <GradientButton
+              title="Grant Access"
+              icon="checkmark-circle"
+              size="lg"
+              fullWidth
+              onPress={() => {
+                setShowPermissionPrompt(false);
+                loadPhoneContacts();
+              }}
+            />
+            <TouchableOpacity
+              style={styles.permissionNotNow}
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={styles.permissionNotNowText}>Not Now</Text>
+            </TouchableOpacity>
+          </View>
+        ) : isLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.loadingText}>Loading contacts...</Text>
@@ -413,6 +437,42 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     padding: spacing.xs,
+  },
+
+  // Permission prompt
+  permissionContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xxxl,
+  },
+  permissionIconContainer: {
+    marginBottom: spacing.xxl,
+  },
+  permissionIconGradient: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  permissionTitle: {
+    ...typography.heading,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  permissionBody: {
+    ...typography.body,
+    textAlign: 'center',
+    marginBottom: spacing.xxl,
+  },
+  permissionNotNow: {
+    marginTop: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  permissionNotNowText: {
+    ...typography.body,
+    color: colors.textMuted,
   },
 
   // Loading

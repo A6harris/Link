@@ -1,0 +1,104 @@
+import type { Contact } from '../../types';
+import { updateContact } from '../../utils/contactsStorage';
+import type { FrequencyKey, User } from './homeTypes';
+
+export const FREQUENCY_BASE_SCORE: Record<FrequencyKey, number> = {
+  weekly: 45,
+  biweekly: 42,
+  monthly: 38,
+  quarterly: 35,
+  biannual: 32,
+  annually: 30,
+};
+
+export const FREQUENCY_URGENCY_MULTIPLIER: Record<FrequencyKey, number> = {
+  weekly: 1.2,
+  biweekly: 1.1,
+  monthly: 1.0,
+  quarterly: 0.9,
+  biannual: 0.8,
+  annually: 0.7,
+};
+
+export const weightedRandomSelect = <T extends { score: number }>(items: T[], count = 1): T[] => {
+  if (items.length === 0) return [];
+  if (items.length <= count) return items;
+  const selected: T[] = [];
+  const remaining = [...items];
+  for (let i = 0; i < count && remaining.length > 0; i++) {
+    const minScore = Math.min(...remaining.map(item => item.score));
+    const weights = remaining.map(item => Math.max(item.score - minScore + 10, 1));
+    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+    let random = Math.random() * totalWeight;
+    let selectedIndex = 0;
+    for (let j = 0; j < weights.length; j++) {
+      random -= weights[j];
+      if (random <= 0) { selectedIndex = j; break; }
+    }
+    selected.push(remaining[selectedIndex]);
+    remaining.splice(selectedIndex, 1);
+  }
+  return selected;
+};
+
+export const daysSince = (dateIso?: string | null): number => {
+  if (!dateIso) return 999;
+  return Math.max(0, Math.floor((Date.now() - new Date(dateIso).getTime()) / (1000 * 60 * 60 * 24)));
+};
+
+export const formatLastContacted = (iso?: string | null): string => {
+  if (!iso) return 'Not recorded';
+  const d = daysSince(iso);
+  if (d === 0) return 'today';
+  if (d === 1) return 'yesterday';
+  return `${d} days ago`;
+};
+
+export const formatBirthday = (iso?: string | null): string | null => {
+  if (!iso) return null;
+  const date = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+};
+
+export const getDaysUntilBirthday = (iso?: string | null): number | null => {
+  if (!iso) return null;
+  const today = new Date();
+  const birthday = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(birthday.getTime())) return null;
+  birthday.setFullYear(today.getFullYear());
+  if (birthday < today) birthday.setFullYear(today.getFullYear() + 1);
+  return Math.ceil((birthday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+};
+
+export const fullName = (c: { firstName?: string; lastName?: string; username?: string }): string =>
+  [c.firstName, c.lastName].filter(Boolean).join(' ').trim() || c.username || 'Friend';
+
+export const asUser = (c: Contact): User => ({
+  id: c.id,
+  firstName: c.firstName || '',
+  lastName: c.lastName || '',
+  username: (c.firstName || 'friend').toLowerCase(),
+  profileImage: c.profileImage,
+});
+
+export const getGreeting = (): string => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+};
+
+export const formatDate = (): string =>
+  new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+// Takes the contact directly — no loadContacts() call needed (H9 fix)
+export const markContactedToday = async (contact: Contact): Promise<Contact> => {
+  const updated: Contact = {
+    ...contact,
+    lastContacted: new Date().toISOString(),
+    lastContactedCount: 'Today',
+  };
+  await updateContact(updated);
+  return updated;
+};

@@ -10,10 +10,11 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  resetKey: number;
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false, error: null };
+  state: State = { hasError: false, error: null, resetKey: 0 };
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
@@ -23,7 +24,7 @@ export default class ErrorBoundary extends Component<Props, State> {
     console.error('[ErrorBoundary]', error.message, info.componentStack);
   }
 
-  handleReset = () => this.setState({ hasError: false, error: null });
+  handleReset = () => this.setState(prev => ({ hasError: false, error: null, resetKey: prev.resetKey + 1 }));
 
   render() {
     if (this.state.hasError) {
@@ -37,7 +38,7 @@ export default class ErrorBoundary extends Component<Props, State> {
         </View>
       );
     }
-    return this.props.children;
+    return <React.Fragment key={this.state.resetKey}>{this.props.children}</React.Fragment>;
   }
 }
 

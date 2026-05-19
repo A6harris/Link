@@ -13,7 +13,7 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "bundleIdentifier": "com.PLACEHOLDER.link",
+      "bundleIdentifier": "com.evanaden.linkapp",
       "buildNumber": "1",
       "supportsTablet": false,
       "infoPlist": {
@@ -21,7 +21,6 @@
         "NSCameraUsageDescription": "Link uses the camera to set profile photos for your contacts.",
         "NSPhotoLibraryUsageDescription": "Link accesses your photo library to set profile photos for your contacts.",
         "NSPhotoLibraryAddUsageDescription": "Link saves photos to your library when you update a contact's profile picture.",
-        "NSCalendarsUsageDescription": "Link reads your calendar to help you track birthdays and anniversaries."
       },
       "privacyManifests": {
         "NSPrivacyAccessedAPITypes": [

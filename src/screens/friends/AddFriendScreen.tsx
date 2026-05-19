@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import { resizeProfileImage } from '../../utils/imageUtils';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import type { Contact, ContactFrequency } from '../../types';
@@ -112,10 +113,11 @@ export default function AddFriendScreen() {
     if (!result.canceled && result.assets?.[0]?.uri) {
       const picked = result.assets[0].uri;
       try {
+        const resized = await resizeProfileImage(picked);
         const dir = `${FileSystem.documentDirectory}profile_images/`;
         await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
         const dest = `${dir}profile_${Date.now()}.jpg`;
-        await FileSystem.copyAsync({ from: picked, to: dest });
+        await FileSystem.copyAsync({ from: resized, to: dest });
         setProfileImage(dest);
       } catch {
         setProfileImage(picked);
@@ -141,10 +143,10 @@ export default function AddFriendScreen() {
     setIsSaving(true);
     try {
       const newContact: Contact = {
-        id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        id: `local-${globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2, 9)}`,
         firstName: firstName.trim(),
         lastName: lastName.trim() || undefined,
-        phone: phone.trim(),
+        phone: phone.replace(/\D/g, ''),
         birthday: normalizedBirthday,
         notes: notes.trim() || null,
         profileImage,

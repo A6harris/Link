@@ -43,37 +43,19 @@ export default function FriendsListScreen() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Filter contacts based on search query
-  const getFilteredContacts = () => {
+  const filteredContacts = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
-    if (!query) {
-      return contacts;
-    }
+    if (!query) return contacts;
     return contacts.filter(contact => {
       const firstName = (contact.firstName || '').toLowerCase();
       const lastName = (contact.lastName || '').toLowerCase();
       const fullName = [firstName, lastName].filter(Boolean).join(' ');
-      // Match if first name, last name, or full name starts with query
-      return firstName.startsWith(query) || 
-             lastName.startsWith(query) || 
-             fullName.startsWith(query);
+      return firstName.startsWith(query) || lastName.startsWith(query) || fullName.startsWith(query);
     });
-  };
-
-  const filteredContacts = getFilteredContacts();
+  }, [contacts, searchQuery]);
 
   const clearSearch = () => {
     setSearchQuery('');
-  };
-
-  const sortByName = (a: Contact, b: Contact) => {
-    const fnA = (a.firstName || '').toLowerCase();
-    const fnB = (b.firstName || '').toLowerCase();
-    if (fnA !== fnB) return fnA.localeCompare(fnB);
-    const lnA = (a.lastName || '').toLowerCase();
-    const lnB = (b.lastName || '').toLowerCase();
-    if (lnA !== lnB) return lnA.localeCompare(lnB);
-    return (a.id || '').localeCompare(b.id || '');
   };
 
   const onRefresh = async () => {
@@ -84,7 +66,7 @@ export default function FriendsListScreen() {
 
   const loadContactsFromStorage = async () => {
     const loaded = await loadContacts();
-    setContacts([...loaded].sort(sortByName));
+    setContacts(loaded);
   };
 
   // Reload contacts when screen comes into focus (e.g., after adding a new contact)
@@ -132,10 +114,20 @@ export default function FriendsListScreen() {
       >
         {/* Avatar */}
         <View style={styles.avatarContainer}>
-          <Image
-            source={{ uri: c.profileImage || 'https://via.placeholder.com/60' }}
-            style={styles.avatar}
-          />
+          {c.profileImage ? (
+            <Image source={{ uri: c.profileImage }} style={styles.avatar} />
+          ) : (
+            <LinearGradient
+              colors={[...gradients.primary]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.avatar}
+            >
+              <Text style={styles.avatarInitials}>
+                {(c.firstName?.[0] || c.lastName?.[0] || '?').toUpperCase()}
+              </Text>
+            </LinearGradient>
+          )}
         </View>
 
         {/* Content */}
@@ -363,6 +355,13 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     backgroundColor: colors.placeholder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitials: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.textLight,
   },
   cardContent: {
     flex: 1,

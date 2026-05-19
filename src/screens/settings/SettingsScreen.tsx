@@ -1,25 +1,27 @@
 // src/screens/settings/SettingsScreen.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Switch,
   Modal,
   TextInput,
   Image,
   Alert,
   Platform,
   KeyboardAvoidingView,
+  Linking,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp, CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import * as ImagePicker from 'expo-image-picker';
+import { resizeProfileImage } from '../../utils/imageUtils';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import type { MainTabParamList, FriendsStackParamList } from '../../types';
 
@@ -146,9 +148,7 @@ function sanitizeLocation(text: string): string {
 
 export default function SettingsScreen() {
   const navigation = useNavigation<SettingsNavigationProp>();
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  
-  // Profile state (would typically come from Redux/context)
+  // Profile state
   const [profile, setProfile] = useState<ProfileFormData>({
     firstName: '',
     lastName: '',
@@ -176,6 +176,26 @@ export default function SettingsScreen() {
   const [editProfile, setEditProfile] = useState<Partial<ProfileFormData>>({});
   const [editAvailability, setEditAvailability] = useState<CallAvailability>(DEFAULT_CALL_AVAILABILITY);
 
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const [storedProfile, storedAvailability] = await Promise.all([
+          AsyncStorage.getItem('@link_profile'),
+          AsyncStorage.getItem('@link_availability'),
+        ]);
+        if (storedProfile) {
+          setProfile(prev => ({ ...prev, ...JSON.parse(storedProfile) }));
+        }
+        if (storedAvailability) {
+          setProfile(prev => ({ ...prev, callAvailability: JSON.parse(storedAvailability) }));
+        }
+      } catch {
+        // profile stays at defaults if storage read fails
+      }
+    };
+    loadProfile();
+  }, []);
+
   // Open edit profile modal
   const handleEditProfile = useCallback(() => {
     setEditProfile({ ...profile });
@@ -183,11 +203,17 @@ export default function SettingsScreen() {
   }, [profile]);
 
   // Save profile changes
-  const handleSaveProfile = useCallback(() => {
-    setProfile(prev => ({ ...prev, ...editProfile }));
+  const handleSaveProfile = useCallback(async () => {
+    const updated = { ...profile, ...editProfile };
+    setProfile(updated);
     setShowEditProfileModal(false);
-    // TODO: Save to backend/storage
-  }, [editProfile]);
+    try {
+      const { callAvailability, ...profileData } = updated;
+      await AsyncStorage.setItem('@link_profile', JSON.stringify(profileData));
+    } catch {
+      // data remains in state for this session
+    }
+  }, [editProfile, profile]);
 
   // Open availability modal
   const handleEditAvailability = useCallback(() => {
@@ -196,10 +222,14 @@ export default function SettingsScreen() {
   }, [profile.callAvailability]);
 
   // Save availability changes
-  const handleSaveAvailability = useCallback(() => {
+  const handleSaveAvailability = useCallback(async () => {
     setProfile(prev => ({ ...prev, callAvailability: editAvailability }));
     setShowAvailabilityModal(false);
-    // TODO: Save to backend/storage
+    try {
+      await AsyncStorage.setItem('@link_availability', JSON.stringify(editAvailability));
+    } catch {
+      // availability remains in state for this session
+    }
   }, [editAvailability]);
 
   // Toggle day availability
@@ -216,19 +246,21 @@ export default function SettingsScreen() {
   const handleTakePhoto = useCallback(async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
+      setShowPhotoModal(false);
       Alert.alert('Permission Required', 'Camera permission is required to take photos.');
       return;
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
     });
 
     if (!result.canceled && result.assets[0]) {
-      setProfile(prev => ({ ...prev, profileImage: result.assets[0].uri }));
+      const resized = await resizeProfileImage(result.assets[0].uri);
+      setProfile(prev => ({ ...prev, profileImage: resized }));
       setShowPhotoModal(false);
     }
   }, []);
@@ -242,14 +274,15 @@ export default function SettingsScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
     });
 
     if (!result.canceled && result.assets[0]) {
-      setProfile(prev => ({ ...prev, profileImage: result.assets[0].uri }));
+      const resized = await resizeProfileImage(result.assets[0].uri);
+      setProfile(prev => ({ ...prev, profileImage: resized }));
       setShowPhotoModal(false);
     }
   }, []);
@@ -413,33 +446,6 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          {/* Notifications Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>NOTIFICATIONS</Text>
-            <View style={styles.sectionCard}>
-              <SettingsItem
-                icon="notifications-outline"
-                title="Push Notifications"
-                subtitle="Get reminded to connect"
-                showArrow={false}
-                rightElement={
-                  <Switch
-                    value={notificationsEnabled}
-                    onValueChange={setNotificationsEnabled}
-                    trackColor={{ false: colors.surfaceBorder, true: colors.primaryLight }}
-                    thumbColor={colors.surface}
-                  />
-                }
-              />
-              <View style={styles.divider} />
-              <SettingsItem
-                icon="calendar-outline"
-                title="Reminder Time"
-                subtitle="Coming soon"
-              />
-            </View>
-          </View>
-
           {/* About Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>ABOUT</Text>
@@ -453,11 +459,13 @@ export default function SettingsScreen() {
               <SettingsItem
                 icon="document-text-outline"
                 title="Privacy Policy"
+                onPress={() => Linking.openURL('https://your-privacy-policy-url.com')}
               />
               <View style={styles.divider} />
               <SettingsItem
                 icon="shield-checkmark-outline"
                 title="Terms of Service"
+                onPress={() => Linking.openURL('https://your-privacy-policy-url.com')}
               />
             </View>
           </View>
