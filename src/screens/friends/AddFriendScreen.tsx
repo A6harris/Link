@@ -120,7 +120,7 @@ export default function AddFriendScreen() {
         await FileSystem.copyAsync({ from: resized, to: dest });
         setProfileImage(dest);
       } catch {
-        setProfileImage(picked);
+        Alert.alert('Could Not Save Photo', 'Failed to copy the image. Please try again.');
       }
     }
   };

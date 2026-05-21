@@ -15,12 +15,13 @@
     "ios": {
       "bundleIdentifier": "com.evanaden.linkapp",
       "buildNumber": "1",
+      "minimumOsVersion": "16.0",
       "supportsTablet": false,
       "infoPlist": {
         "NSContactsUsageDescription": "Link uses your contacts to help you stay in touch with the people you care about.",
         "NSCameraUsageDescription": "Link uses the camera to set profile photos for your contacts.",
         "NSPhotoLibraryUsageDescription": "Link accesses your photo library to set profile photos for your contacts.",
-        "NSPhotoLibraryAddUsageDescription": "Link saves photos to your library when you update a contact's profile picture.",
+        "NSPhotoLibraryAddUsageDescription": "Link saves photos to your library when you update a contact's profile picture."
       },
       "privacyManifests": {
         "NSPrivacyAccessedAPITypes": [

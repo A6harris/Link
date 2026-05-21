@@ -53,22 +53,32 @@ function formatBirthday(birthday: Contacts.Date | undefined): string | undefined
  * Fetch all contacts from the device including birthday and photo
  */
 export async function fetchPhoneContacts(): Promise<PhoneContact[]> {
-  const { data } = await Contacts.getContactsAsync({
-    fields: [
-      Contacts.Fields.FirstName,
-      Contacts.Fields.LastName,
-      Contacts.Fields.PhoneNumbers,
-      Contacts.Fields.Image,
-      Contacts.Fields.Birthday,
-    ],
-    sort: Contacts.SortTypes.LastName,
-  });
+  const PAGE_SIZE = 200;
+  const allData: Contacts.Contact[] = [];
+  let pageOffset = 0;
 
-  // Filter contacts that have at least a name and phone number
-  return data
-    .filter(contact => 
-      (contact.firstName || contact.lastName) && 
-      contact.phoneNumbers && 
+  while (true) {
+    const result = await Contacts.getContactsAsync({
+      fields: [
+        Contacts.Fields.FirstName,
+        Contacts.Fields.LastName,
+        Contacts.Fields.PhoneNumbers,
+        Contacts.Fields.Thumbnail,
+        Contacts.Fields.Birthday,
+      ],
+      sort: Contacts.SortTypes.LastName,
+      pageSize: PAGE_SIZE,
+      pageOffset,
+    });
+    allData.push(...result.data);
+    if (!result.hasNextPage) break;
+    pageOffset += PAGE_SIZE;
+  }
+
+  return allData
+    .filter(contact =>
+      (contact.firstName || contact.lastName) &&
+      contact.phoneNumbers &&
       contact.phoneNumbers.length > 0
     )
     .map(contact => ({
@@ -76,7 +86,7 @@ export async function fetchPhoneContacts(): Promise<PhoneContact[]> {
       firstName: contact.firstName || '',
       lastName: contact.lastName || undefined,
       phone: contact.phoneNumbers?.[0]?.number || undefined,
-      imageUri: contact.image?.uri || undefined,
+      imageUri: contact.thumbnail?.uri || undefined,
       birthday: formatBirthday(contact.birthday),
     }));
 }

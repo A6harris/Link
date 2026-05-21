@@ -15,6 +15,7 @@ import {
   Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -260,7 +261,11 @@ export default function SettingsScreen() {
 
     if (!result.canceled && result.assets[0]) {
       const resized = await resizeProfileImage(result.assets[0].uri);
-      setProfile(prev => ({ ...prev, profileImage: resized }));
+      const dir = `${FileSystem.documentDirectory}profile_images/`;
+      await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+      const dest = `${dir}user_profile_${Date.now()}.jpg`;
+      await FileSystem.copyAsync({ from: resized, to: dest });
+      setProfile(prev => ({ ...prev, profileImage: dest }));
       setShowPhotoModal(false);
     }
   }, []);
@@ -269,6 +274,7 @@ export default function SettingsScreen() {
   const handleChooseFromGallery = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
+      setShowPhotoModal(false);
       Alert.alert('Permission Required', 'Photo library permission is required to choose photos.');
       return;
     }
@@ -282,7 +288,11 @@ export default function SettingsScreen() {
 
     if (!result.canceled && result.assets[0]) {
       const resized = await resizeProfileImage(result.assets[0].uri);
-      setProfile(prev => ({ ...prev, profileImage: resized }));
+      const dir = `${FileSystem.documentDirectory}profile_images/`;
+      await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+      const dest = `${dir}user_profile_${Date.now()}.jpg`;
+      await FileSystem.copyAsync({ from: resized, to: dest });
+      setProfile(prev => ({ ...prev, profileImage: dest }));
       setShowPhotoModal(false);
     }
   }, []);
@@ -459,13 +469,13 @@ export default function SettingsScreen() {
               <SettingsItem
                 icon="document-text-outline"
                 title="Privacy Policy"
-                onPress={() => Linking.openURL('https://your-privacy-policy-url.com')}
+                onPress={() => Linking.openURL('https://a6harris.github.io/Link/privacy.html')}
               />
               <View style={styles.divider} />
               <SettingsItem
                 icon="shield-checkmark-outline"
                 title="Terms of Service"
-                onPress={() => Linking.openURL('https://your-privacy-policy-url.com')}
+                onPress={() => Linking.openURL('https://a6harris.github.io/Link/privacy.html')}
               />
             </View>
           </View>
