@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, gradients, radius, spacing, typography, shadow } from '../styles/theme';
+import { resolveProfileImageUri } from '../utils/imageUtils';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - spacing.lg * 2;
@@ -72,7 +73,7 @@ export default function FriendCard({
       >
         {/* Background Image or Placeholder */}
         <Image
-          source={imageUri ? { uri: imageUri } : require('../../assets/default_photo.png')}
+          source={imageUri ? { uri: resolveProfileImageUri(imageUri) } : require('../../assets/default_photo.png')}
           style={styles.backgroundImage}
           resizeMode="cover"
         />

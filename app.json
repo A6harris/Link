@@ -2,7 +2,7 @@
   "expo": {
     "name": "Link",
     "slug": "Link",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -21,17 +21,34 @@
         "NSContactsUsageDescription": "Link uses your contacts to help you stay in touch with the people you care about.",
         "NSCameraUsageDescription": "Link uses the camera to set profile photos for your contacts.",
         "NSPhotoLibraryUsageDescription": "Link accesses your photo library to set profile photos for your contacts.",
-        "NSPhotoLibraryAddUsageDescription": "Link saves photos to your library when you update a contact's profile picture."
+        "NSPhotoLibraryAddUsageDescription": "Link saves photos to your library when you update a contact's profile picture.",
+        "ITSAppUsesNonExemptEncryption": false
       },
       "privacyManifests": {
         "NSPrivacyAccessedAPITypes": [
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
-            "NSPrivacyAccessedAPITypeReasons": ["C617.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "C617.1"
+            ]
           },
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
-            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "C617.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
           }
         ]
       }
@@ -45,6 +62,26 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Link uses your contacts to help you stay in touch with the people you care about."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Link accesses your photo library to set profile photos for your contacts.",
+          "cameraPermission": "Link uses the camera to set profile photos for your contacts."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f5c533f2-2ca5-4e38-a288-7a04bbe25692"
+      }
     }
   }
 }

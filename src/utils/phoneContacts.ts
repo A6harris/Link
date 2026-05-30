@@ -1,5 +1,6 @@
 // src/utils/phoneContacts.ts
 import * as Contacts from 'expo-contacts';
+import * as FileSystem from 'expo-file-system';
 import type { Contact } from '../types';
 import { DEFAULT_CONTACT_FREQUENCY } from '../constants/contactFrequency';
 import { generateId } from './localUser';
@@ -30,52 +31,34 @@ export async function checkContactsPermission(): Promise<boolean> {
   return status === 'granted';
 }
 
-/**
- * Format a contact birthday to ISO date string (YYYY-MM-DD)
- */
 function formatBirthday(birthday: Contacts.Date | undefined): string | undefined {
   if (!birthday) return undefined;
-  
   const { year, month, day } = birthday;
-  
-  // Need at least month and day for a meaningful birthday
   if (month === undefined || day === undefined) return undefined;
-  
-  // Use a placeholder year if not provided (common for birthdays without year)
   const yearStr = year !== undefined ? String(year).padStart(4, '0') : '1900';
   const monthStr = String(month + 1).padStart(2, '0');
   const dayStr = String(day).padStart(2, '0');
-  
   return `${yearStr}-${monthStr}-${dayStr}`;
 }
 
 /**
- * Fetch all contacts from the device including birthday and photo
+ * Fetch all contacts from the device.
+ * Note: sort and Thumbnail fields are intentionally omitted — they cause
+ * crashes on New Architecture builds (binary data crossing the bridge).
+ * Pagination (pageSize/pageOffset) is also omitted — hasNextPage behaves
+ * unreliably on New Architecture and caused an infinite loop. Sorting in JS.
  */
 export async function fetchPhoneContacts(): Promise<PhoneContact[]> {
-  const PAGE_SIZE = 200;
-  const allData: Contacts.Contact[] = [];
-  let pageOffset = 0;
+  const result = await Contacts.getContactsAsync({
+    fields: [
+      Contacts.Fields.FirstName,
+      Contacts.Fields.LastName,
+      Contacts.Fields.PhoneNumbers,
+      Contacts.Fields.Birthday,
+    ],
+  });
 
-  while (true) {
-    const result = await Contacts.getContactsAsync({
-      fields: [
-        Contacts.Fields.FirstName,
-        Contacts.Fields.LastName,
-        Contacts.Fields.PhoneNumbers,
-        Contacts.Fields.Thumbnail,
-        Contacts.Fields.Birthday,
-      ],
-      sort: Contacts.SortTypes.LastName,
-      pageSize: PAGE_SIZE,
-      pageOffset,
-    });
-    allData.push(...result.data);
-    if (!result.hasNextPage) break;
-    pageOffset += PAGE_SIZE;
-  }
-
-  return allData
+  return (result.data ?? [])
     .filter(contact =>
       (contact.firstName || contact.lastName) &&
       contact.phoneNumbers &&
@@ -86,9 +69,14 @@ export async function fetchPhoneContacts(): Promise<PhoneContact[]> {
       firstName: contact.firstName || '',
       lastName: contact.lastName || undefined,
       phone: contact.phoneNumbers?.[0]?.number || undefined,
-      imageUri: contact.thumbnail?.uri || undefined,
+      imageUri: undefined,
       birthday: formatBirthday(contact.birthday),
-    }));
+    }))
+    .sort((a, b) => {
+      const nameA = [a.lastName, a.firstName].filter(Boolean).join(' ').toLowerCase();
+      const nameB = [b.lastName, b.firstName].filter(Boolean).join(' ').toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
 }
 
 /**
@@ -118,10 +106,30 @@ export function convertToAppContact(phoneContact: PhoneContact): Contact {
   };
 }
 
+/**
+ * Fetch a single contact's photo and copy it to documentDirectory.
+ * Returns a relative path (e.g. "profile_images/xxx.jpg") or undefined.
+ * Safe on New Architecture because it fetches one contact at a time, not all.
+ */
+export async function fetchAndSaveContactImage(contactId: string): Promise<string | undefined> {
+  try {
+    const contact = await Contacts.getContactByIdAsync(contactId, [Contacts.Fields.Image]);
+    if (!contact?.imageAvailable || !contact.image?.uri) return undefined;
+    const dir = `${FileSystem.documentDirectory}profile_images/`;
+    await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+    const relPath = `profile_images/profile_import_${Date.now()}_${generateId()}.jpg`;
+    await FileSystem.copyAsync({ from: contact.image.uri, to: `${FileSystem.documentDirectory}${relPath}` });
+    return relPath;
+  } catch {
+    return undefined;
+  }
+}
+
 export default {
   requestContactsPermission,
   checkContactsPermission,
   fetchPhoneContacts,
+  fetchAndSaveContactImage,
   normalizePhoneNumber,
   convertToAppContact,
 };

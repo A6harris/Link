@@ -12,7 +12,7 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
-import { resizeProfileImage } from '../../utils/imageUtils';
+import { resizeProfileImage, resolveProfileImageUri } from '../../utils/imageUtils';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -241,11 +241,11 @@ export default function FriendProfileScreen() {
       const picked = result.assets[0].uri;
       try {
         const resized = await resizeProfileImage(picked);
+        const relPath = `profile_images/profile_${Date.now()}.jpg`;
         const dir = `${FileSystem.documentDirectory}profile_images/`;
         await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
-        const dest = `${dir}profile_${Date.now()}.jpg`;
-        await FileSystem.copyAsync({ from: resized, to: dest });
-        setProfileImage(dest);
+        await FileSystem.copyAsync({ from: resized, to: `${FileSystem.documentDirectory}${relPath}` });
+        setProfileImage(relPath);
       } catch {
         Alert.alert('Could Not Save Photo', 'Failed to copy the image. Please try again.');
       }
@@ -341,7 +341,7 @@ export default function FriendProfileScreen() {
           {/* Hero Section */}
           <View style={styles.heroSection}>
             <Image
-              source={profileImage ? { uri: profileImage } : require('../../../assets/default_photo.png')}
+              source={profileImage ? { uri: resolveProfileImageUri(profileImage) } : require('../../../assets/default_photo.png')}
               style={styles.heroImage}
               resizeMode="cover"
             />
@@ -375,7 +375,7 @@ export default function FriendProfileScreen() {
                 >
                   <View style={styles.profileImageInner}>
                     {profileImage ? (
-                      <Image source={{ uri: profileImage }} style={styles.profileImage} />
+                      <Image source={{ uri: resolveProfileImageUri(profileImage) }} style={styles.profileImage} />
                     ) : (
                       <View style={styles.profileImagePlaceholder}>
                         <Ionicons name="camera" size={32} color={colors.textMuted} />

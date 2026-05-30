@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
-import { resizeProfileImage } from '../../utils/imageUtils';
+import { resizeProfileImage, resolveProfileImageUri } from '../../utils/imageUtils';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import type { Contact, ContactFrequency } from '../../types';
@@ -114,11 +114,11 @@ export default function AddFriendScreen() {
       const picked = result.assets[0].uri;
       try {
         const resized = await resizeProfileImage(picked);
+        const relPath = `profile_images/profile_${Date.now()}.jpg`;
         const dir = `${FileSystem.documentDirectory}profile_images/`;
         await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
-        const dest = `${dir}profile_${Date.now()}.jpg`;
-        await FileSystem.copyAsync({ from: resized, to: dest });
-        setProfileImage(dest);
+        await FileSystem.copyAsync({ from: resized, to: `${FileSystem.documentDirectory}${relPath}` });
+        setProfileImage(relPath);
       } catch {
         Alert.alert('Could Not Save Photo', 'Failed to copy the image. Please try again.');
       }
@@ -239,7 +239,7 @@ export default function AddFriendScreen() {
         {/* Profile Image Picker - Required */}
         <TouchableOpacity onPress={pickImage} style={styles.imagePicker}>
           {profileImage ? (
-            <Image source={{ uri: profileImage }} style={styles.profileImageLarge} />
+            <Image source={{ uri: resolveProfileImageUri(profileImage) }} style={styles.profileImageLarge} />
           ) : (
             <View style={styles.imagePickerPlaceholder}>
               <Ionicons name="camera" size={32} color={colors.textMuted} />

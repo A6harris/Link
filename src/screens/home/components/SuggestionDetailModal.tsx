@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { GradientButton } from '../../../components';
 import { colors, gradients, spacing, radius, typography, shadow } from '../../../styles/theme';
 import { fullName } from '../homeUtils';
+import { resolveProfileImageUri } from '../../../utils/imageUtils';
 import type { ConnectionSuggestion } from '../homeTypes';
 
 type Props = {
@@ -47,7 +48,7 @@ export function SuggestionDetailModal({
                 >
                   <View style={styles.imageInner}>
                     {suggestion.friend.profileImage ? (
-                      <Image source={{ uri: suggestion.friend.profileImage }} style={styles.image} />
+                      <Image source={{ uri: resolveProfileImageUri(suggestion.friend.profileImage) }} style={styles.image} />
                     ) : (
                       <View style={[styles.image, styles.imageFallback]}>
                         <Ionicons name="person" size={48} color={colors.primary} />

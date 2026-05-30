@@ -19,7 +19,9 @@ import { useNavigation } from '@react-navigation/native';
 import {
   PhoneContact,
   requestContactsPermission,
+  checkContactsPermission,
   fetchPhoneContacts,
+  fetchAndSaveContactImage,
   convertToAppContact,
   normalizePhoneNumber,
 } from '../../utils/phoneContacts';
@@ -39,6 +41,7 @@ export default function SyncContactsScreen() {
   const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [phoneContacts, setPhoneContacts] = useState<PhoneContact[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,7 +61,8 @@ export default function SyncContactsScreen() {
 
   const loadPhoneContacts = async () => {
     setIsLoading(true);
-    
+    setLoadError(false);
+
     const hasPermission = await requestContactsPermission();
     if (!hasPermission) {
       setIsLoading(false);
@@ -71,7 +75,6 @@ export default function SyncContactsScreen() {
     }
 
     try {
-      // Load existing contacts to check for duplicates
       const existingContacts = await loadContacts();
       const existingPhoneSet = new Set(
         existingContacts
@@ -79,10 +82,8 @@ export default function SyncContactsScreen() {
           .filter(Boolean)
       );
 
-      // Fetch phone contacts
       const contacts = await fetchPhoneContacts();
-      
-      // Filter out contacts that already exist (by phone number)
+
       const newContacts = contacts.filter(c => {
         const normalizedPhone = normalizePhoneNumber(c.phone);
         return normalizedPhone && !existingPhoneSet.has(normalizedPhone);
@@ -91,11 +92,21 @@ export default function SyncContactsScreen() {
       setPhoneContacts(newContacts);
     } catch (error) {
       console.error('Error loading contacts:', error);
-      Alert.alert('Error', 'Failed to load contacts. Please try again.');
+      setLoadError(true);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // If permission is already granted, skip the prompt and load immediately
+  useEffect(() => {
+    checkContactsPermission().then(granted => {
+      if (granted) {
+        setShowPermissionPrompt(false);
+        loadPhoneContacts();
+      }
+    });
+  }, []);
 
   const toggleContact = (id: string) => {
     setSelectedIds(prev => {
@@ -139,9 +150,16 @@ export default function SyncContactsScreen() {
 
     setIsSaving(true);
     try {
-      const contactsToImport = phoneContacts
-        .filter(c => selectedIds.has(c.id))
-        .map(convertToAppContact);
+      const contactsToImport = await Promise.all(
+        phoneContacts
+          .filter(c => selectedIds.has(c.id))
+          .map(async (phoneContact) => {
+            const appContact = convertToAppContact(phoneContact);
+            const imageRelPath = await fetchAndSaveContactImage(phoneContact.id);
+            if (imageRelPath) appContact.profileImage = imageRelPath;
+            return appContact;
+          })
+      );
       await addContacts(contactsToImport);
 
       Alert.alert(
@@ -283,6 +301,29 @@ export default function SyncContactsScreen() {
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.loadingText}>Loading contacts...</Text>
+          </View>
+        ) : loadError ? (
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconContainer}>
+              <LinearGradient
+                colors={['#FF3B30', '#E91E63']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.emptyIconGradient}
+              >
+                <Ionicons name="warning" size={48} color={colors.textLight} />
+              </LinearGradient>
+            </View>
+            <Text style={styles.emptyTitle}>Couldn't load contacts</Text>
+            <Text style={styles.emptyText}>
+              There was a problem reading your contacts. Please try again.
+            </Text>
+            <GradientButton
+              title="Try Again"
+              icon="refresh"
+              onPress={loadPhoneContacts}
+              size="lg"
+            />
           </View>
         ) : phoneContacts.length === 0 ? (
           <View style={styles.emptyContainer}>

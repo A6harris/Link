@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Dimensions,
   TextInput,
+  Modal,
 } from 'react-native';
 import type { ViewStyle, TextStyle, ImageStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { FriendsStackParamList } from '../../types';
+import { resolveProfileImageUri } from '../../utils/imageUtils';
 
 import type { Contact } from '../../types';
 import { loadContacts } from '../../utils/contactsStorage';
@@ -42,6 +44,7 @@ export default function FriendsListScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const filteredContacts = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
@@ -115,7 +118,7 @@ export default function FriendsListScreen() {
         {/* Avatar */}
         <View style={styles.avatarContainer}>
           {c.profileImage ? (
-            <Image source={{ uri: c.profileImage }} style={styles.avatar} />
+            <Image source={{ uri: resolveProfileImageUri(c.profileImage) }} style={styles.avatar} />
           ) : (
             <LinearGradient
               colors={[...gradients.primary]}
@@ -166,7 +169,7 @@ export default function FriendsListScreen() {
         <Text style={styles.headerTitle}>Your Friends</Text>
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() => navigation.navigate('AddFriend')}
+          onPress={() => setShowAddModal(true)}
         >
           <LinearGradient
             colors={[...gradients.primary]}
@@ -266,6 +269,67 @@ export default function FriendsListScreen() {
           />
         )}
       </SafeAreaView>
+
+      <Modal
+        visible={showAddModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAddModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowAddModal(false)}
+        >
+          <View style={styles.addModalContainer}>
+            <Text style={styles.addModalTitle}>Add Contact</Text>
+
+            <TouchableOpacity
+              style={styles.addModalOption}
+              onPress={() => {
+                setShowAddModal(false);
+                navigation.navigate('SyncContacts');
+              }}
+            >
+              <LinearGradient
+                colors={[...gradients.primary]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.addModalOptionIcon}
+              >
+                <Ionicons name="people" size={22} color={colors.textLight} />
+              </LinearGradient>
+              <View style={styles.addModalOptionText}>
+                <Text style={styles.addModalOptionTitle}>Import from Contacts</Text>
+                <Text style={styles.addModalOptionSubtitle}>Choose from your phone's contacts</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.addModalOption}
+              onPress={() => {
+                setShowAddModal(false);
+                navigation.navigate('AddFriend');
+              }}
+            >
+              <LinearGradient
+                colors={[...gradients.cool]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.addModalOptionIcon}
+              >
+                <Ionicons name="create" size={22} color={colors.textLight} />
+              </LinearGradient>
+              <View style={styles.addModalOptionText}>
+                <Text style={styles.addModalOptionTitle}>Add Manually</Text>
+                <Text style={styles.addModalOptionSubtitle}>Enter contact details by hand</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -456,5 +520,55 @@ const styles = StyleSheet.create({
     ...typography.body,
     textAlign: 'center',
     marginBottom: spacing.xxl,
+  },
+
+  // Add contact modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: 'flex-end',
+  },
+  addModalContainer: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.xxl,
+    borderTopRightRadius: radius.xxl,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxxl,
+    paddingHorizontal: spacing.xl,
+  },
+  addModalTitle: {
+    ...typography.heading,
+    fontSize: 18,
+    marginBottom: spacing.lg,
+    textAlign: 'center',
+  },
+  addModalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.xl,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.surfaceMuted,
+    gap: spacing.md,
+  },
+  addModalOptionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addModalOptionText: {
+    flex: 1,
+  },
+  addModalOptionTitle: {
+    ...typography.label,
+    fontSize: 16,
+    marginBottom: spacing.xxs,
+  },
+  addModalOptionSubtitle: {
+    ...typography.caption,
+    color: colors.textMuted,
   },
 });
