@@ -31,6 +31,7 @@ interface FriendCardProps {
   onFaceTime?: () => void;
   onSnooze?: () => void;
   onContactedRecently?: () => void;
+  headerOverlay?: React.ReactNode;
 }
 
 export default function FriendCard({
@@ -45,6 +46,7 @@ export default function FriendCard({
   onFaceTime,
   onSnooze,
   onContactedRecently,
+  headerOverlay,
 }: FriendCardProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -86,9 +88,14 @@ export default function FriendCard({
         />
 
 
+        {/* Header overlay (e.g. weekly goal strip) pinned to the top edge */}
+        {headerOverlay && (
+          <View style={styles.headerOverlay}>{headerOverlay}</View>
+        )}
+
         {/* Cadence Badge */}
         {cadenceLabel && (
-          <View style={styles.cadenceBadge}>
+          <View style={[styles.cadenceBadge, headerOverlay ? styles.cadenceBadgeWithHeader : null]}>
             <Text style={styles.cadenceText}>{cadenceLabel}</Text>
           </View>
         )}
@@ -198,6 +205,12 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  headerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
   cadenceBadge: {
     position: 'absolute',
     top: spacing.lg,
@@ -206,6 +219,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderRadius: radius.pill,
     backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  // When the header strip is present, drop the badge below it so they don't overlap.
+  cadenceBadgeWithHeader: {
+    top: spacing.xxxxl + spacing.sm,
   },
   cadenceText: {
     fontSize: 12,

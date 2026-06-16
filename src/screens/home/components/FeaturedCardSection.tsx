@@ -5,10 +5,12 @@ import { FriendCard } from '../../../components';
 import { colors, spacing, typography } from '../../../styles/theme';
 import { CONTACT_FREQUENCY_CONFIG, DEFAULT_CONTACT_FREQUENCY } from '../../../constants/contactFrequency';
 import { fullName, formatLastContacted } from '../homeUtils';
-import type { ConnectionSuggestion } from '../homeTypes';
+import { WeeklyGoalBar } from './WeeklyGoalBar';
+import type { ConnectionSuggestion, WeeklyGoal } from '../homeTypes';
 
 type Props = {
   suggestion: ConnectionSuggestion;
+  weeklyGoal: WeeklyGoal;
   onShuffle: () => void;
   onPress: () => void;
   onCall: () => void;
@@ -19,6 +21,7 @@ type Props = {
 
 export function FeaturedCardSection({
   suggestion,
+  weeklyGoal,
   onShuffle,
   onPress,
   onCall,
@@ -50,6 +53,7 @@ export function FeaturedCardSection({
         onMessage={onMessage}
         onSnooze={onShuffle}
         onContactedRecently={onContactedRecently}
+        headerOverlay={weeklyGoal.goal > 0 ? <WeeklyGoalBar {...weeklyGoal} /> : undefined}
       />
     </View>
   );

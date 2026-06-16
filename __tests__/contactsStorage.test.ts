@@ -20,7 +20,7 @@ describe('contactsStorage', () => {
     expect(mockedStorage.getItem).toHaveBeenCalled();
   });
 
-  it('saves and loads contacts', async () => {
+  it('saves and loads contacts, normalizing missing fields', async () => {
     const contacts: Contact[] = [
       { id: '1', firstName: 'Alice', createdAt: new Date().toISOString(), contactFrequency: DEFAULT_CONTACT_FREQUENCY },
     ];
@@ -30,10 +30,13 @@ describe('contactsStorage', () => {
 
     mockedStorage.getItem.mockResolvedValueOnce(JSON.stringify(contacts));
     const loaded = await loadContacts();
-    expect(loaded).toEqual(contacts);
+    // loadContacts normalizes: fills birthday/lastContactedCount and sanitizes phone
+    expect(loaded).toEqual([
+      { ...contacts[0], birthday: null, lastContactedCount: null, phone: undefined },
+    ]);
   });
 
-  it('addContact prepends and persists', async () => {
+  it('addContact persists the new contact alphabetized by name', async () => {
     const existing: Contact[] = [
       { id: 'a', firstName: 'Bob', createdAt: new Date().toISOString(), contactFrequency: 'biannual' },
     ];
@@ -47,7 +50,8 @@ describe('contactsStorage', () => {
     expect(mockedStorage.setItem).toHaveBeenCalled();
     const savedArg = mockedStorage.setItem.mock.calls[0][1];
     const parsed = JSON.parse(savedArg) as Contact[];
-    expect(parsed[0].id).toBe('b');
+    // saveContacts alphabetizes by first name, so Bob comes before Carol
+    expect(parsed.map(c => c.id)).toEqual(['a', 'b']);
   });
 
   it('removeContact filters and saves', async () => {

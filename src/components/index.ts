@@ -6,3 +6,4 @@ export { default as StatsPill } from './StatsPill';
 export { default as FloatingTabBar } from './FloatingTabBar';
 export { default as GradientText } from './GradientText';
 export { default as ErrorBoundary } from './ErrorBoundary';
+export { default as Snackbar } from './Snackbar';

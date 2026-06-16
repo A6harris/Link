@@ -10,6 +10,7 @@ import {
   daysSince,
   asUser,
 } from './homeUtils';
+import { computeWeeklyGoal } from './weeklyGoal';
 
 export function useLocalConnectionSuggestions() {
   const [suggestions, setSuggestions] = useState<ConnectionSuggestion[]>([]);
@@ -82,12 +83,27 @@ export function useLocalConnectionSuggestions() {
 
   const topSuggestion = useMemo(() => suggestions[0], [suggestions]);
 
+  // Derived from the already-loaded contacts — no extra AsyncStorage read.
+  // Recomputes whenever contacts change (e.g. after marking someone contacted).
+  const weeklyGoal = useMemo(() => computeWeeklyGoal(allContacts), [allContacts]);
+
+  // Puts a previously shown suggestion back on top (e.g. after an undo) and syncs
+  // the in-memory contact with the restored storage values, without re-rolling
+  // the random scoring.
+  const restoreSuggestion = useCallback((suggestion: ConnectionSuggestion, contact: Contact) => {
+    lastSuggestedFriendIdRef.current = suggestion.friendId;
+    setSuggestions(prev => [suggestion, ...prev.filter(s => s.friendId !== suggestion.friendId)]);
+    setAllContacts(prev => prev.map(c => (c.id === contact.id ? contact : c)));
+  }, []);
+
   return {
     loading,
     suggestions,
     topSuggestion,
     refresh: compute,
     generateNewSuggestion: compute,
+    restoreSuggestion,
     allContacts,
+    weeklyGoal,
   };
 }

@@ -16,7 +16,7 @@ interface State {
 export default class ErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false, error: null, resetKey: 0 };
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
   }
 
@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
     padding: spacing.xxxl,
   },
   title: {
-    ...typography.headingLarge,
+    ...typography.heading,
     color: colors.textPrimary,
     marginBottom: spacing.md,
     textAlign: 'center',
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   buttonText: {
-    ...typography.buttonMedium,
+    ...typography.buttonPrimary,
     color: colors.textLight,
   },
 });
