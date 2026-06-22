@@ -1,6 +1,29 @@
 import type { Contact } from '../../types';
 import { updateContact } from '../../utils/contactsStorage';
+import { CONTACT_FREQUENCY_CONFIG } from '../../constants/contactFrequency';
 import type { FrequencyKey, User } from './homeTypes';
+
+const CADENCE_PHRASE: Record<FrequencyKey, string> = {
+  weekly: 'every week',
+  biweekly: 'every couple of weeks',
+  monthly: 'every month',
+  quarterly: 'every few months',
+  biannual: 'twice a year',
+  annually: 'once a year',
+};
+
+// Hero subtitle: how often you usually talk + whether it's been a while.
+export const cadenceSubtitle = (
+  frequency: FrequencyKey,
+  lastContactedISO?: string | null,
+): string => {
+  const phrase = CADENCE_PHRASE[frequency] ?? 'now and then';
+  if (!lastContactedISO) return `You usually talk ${phrase} — time to reconnect`;
+  const overdue = daysSince(lastContactedISO) >= CONTACT_FREQUENCY_CONFIG[frequency].days;
+  return overdue
+    ? `You usually talk ${phrase} — it's been a little while`
+    : `You usually talk ${phrase} — you're on track`;
+};
 
 export const FREQUENCY_BASE_SCORE: Record<FrequencyKey, number> = {
   weekly: 45,
@@ -52,6 +75,21 @@ export const formatLastContacted = (iso?: string | null): string => {
   if (d === 0) return 'today';
   if (d === 1) return 'yesterday';
   return `${d} days ago`;
+};
+
+// "Last contacted X days/months/years ago", or "New Contact" when never recorded.
+export const formatLastContactedLong = (iso?: string | null): string => {
+  if (!iso) return 'New Contact';
+  const d = daysSince(iso);
+  if (d === 0) return 'Last contacted today';
+  if (d === 1) return 'Last contacted yesterday';
+  if (d < 30) return `Last contacted ${d} days ago`;
+  if (d < 365) {
+    const m = Math.floor(d / 30);
+    return `Last contacted ${m} ${m === 1 ? 'month' : 'months'} ago`;
+  }
+  const y = Math.floor(d / 365);
+  return `Last contacted ${y} ${y === 1 ? 'year' : 'years'} ago`;
 };
 
 export const formatBirthday = (iso?: string | null): string | null => {

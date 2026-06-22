@@ -306,7 +306,7 @@ export default function SyncContactsScreen() {
           <View style={styles.emptyContainer}>
             <View style={styles.emptyIconContainer}>
               <LinearGradient
-                colors={['#FF3B30', '#E91E63']}
+                colors={[colors.danger, '#FF6B6B']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.emptyIconGradient}

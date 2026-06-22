@@ -2,11 +2,12 @@ import { StyleSheet } from 'react-native';
 
 
 export const colors = {
-  // Backgrounds
-  background: '#F5F5F7',
-  backgroundGradientStart: '#F8F6FA',
-  backgroundGradientEnd: '#E8F4F8',
-  
+  // Backgrounds (warm near-white)
+  background: '#FAF8F3',
+  backgroundSunken: '#F1EDE2',
+  backgroundGradientStart: '#FCFAF6',
+  backgroundGradientEnd: '#F6F2EA',
+
   // Surfaces
   surface: '#FFFFFF',
   surfaceMuted: '#F8F9FC',
@@ -14,18 +15,19 @@ export const colors = {
   surfaceBorder: '#E8E8F0',
   surfaceOverlay: 'rgba(255, 255, 255, 0.85)',
   placeholder: '#E9ECF2',
-  
-  // Primary gradient colors
+
+  // Primary gradient colors (purple-only)
   gradientStart: '#9B59B6',
-  gradientMid: '#B24592',
-  gradientEnd: '#E91E63',
-  
-  // Accent colors
+  gradientMid: '#8E44AD',
+  gradientEnd: '#7B2D8E',
+
+  // Accent colors (lavender, no pink)
   primary: '#7B2D8E',
   primaryLight: '#A855F7',
+  primaryPastel: '#D8B4FE',
   primarySoft: '#F3E8FF',
-  accent: '#E91E63',
-  accentSoft: '#FCE4EC',
+  accent: '#8E44AD',
+  accentSoft: '#EFE3F7',
   
   // Semantic colors
   success: '#00BFA6',
@@ -36,12 +38,13 @@ export const colors = {
   dangerSoft: '#FFEBEE',
   
   // Text colors
+  black: '#000000',
   textPrimary: '#1A1A2E',
   textSecondary: '#64648C',
   textMuted: '#9999B3',
   textLight: '#FFFFFF',
   textGradientStart: '#9B59B6',
-  textGradientEnd: '#E91E63',
+  textGradientEnd: '#7B2D8E',
   
   // Special
   overlay: 'rgba(26, 26, 46, 0.45)',
@@ -57,17 +60,17 @@ export const colors = {
 
 // Gradient definitions for use with expo-linear-gradient
 export const gradients = {
-  primary: ['#9B59B6', '#B24592', '#E91E63'] as const,
-  primarySubtle: ['#D8B4FE', '#F0ABFC', '#F9A8D4'] as const,
-  accent: ['#E91E63', '#EC407A', '#F48FB1'] as const,
+  primary: ['#9B59B6', '#8E44AD', '#7B2D8E'] as const,
+  primarySubtle: ['#D8B4FE', '#C9A8F0', '#B794E8'] as const,
+  accent: ['#8E44AD', '#7B2D8E', '#6A2580'] as const,
   warm: ['#F59E0B', '#F97316', '#EF4444'] as const,
   cool: ['#06B6D4', '#0EA5E9', '#3B82F6'] as const,
   success: ['#00BFA6', '#26C6A0', '#4DD0B0'] as const,
   surface: ['#FFFFFF', '#F8F9FC'] as const,
   overlay: ['transparent', 'rgba(0,0,0,0.7)'] as const,
   overlayTop: ['rgba(0,0,0,0.5)', 'transparent'] as const,
-  storyRing: ['#9B59B6', '#E91E63', '#F59E0B'] as const,
-  storyRingUrgent: ['#FF3B30', '#E91E63', '#FF6B6B'] as const,
+  storyRing: ['#9B59B6', '#8E44AD', '#7B2D8E'] as const,
+  storyRingUrgent: ['#FF3B30', '#FF5A5F', '#FF6B6B'] as const,
 } as const;
 
 export const spacing = {
@@ -94,110 +97,137 @@ export const radius = {
   circle: 9999,
 } as const;
 
+// Plus Jakarta Sans variants. Google Fonts loads each weight as its own family,
+// so we map weight -> family explicitly rather than relying on fontWeight alone.
+export const fontFamily = {
+  regular: 'PlusJakartaSans_400Regular',
+  medium: 'PlusJakartaSans_500Medium',
+  semibold: 'PlusJakartaSans_600SemiBold',
+  bold: 'PlusJakartaSans_700Bold',
+  extrabold: 'PlusJakartaSans_800ExtraBold',
+} as const;
+
 // Typography with distinctive font pairing
 export const typography = {
-  // Display & Headlines (serif-style elegance)
+  // Display & Headlines
   displayLarge: {
     fontSize: 36,
-    fontWeight: '700' as const,
+    fontWeight: '800' as const,
+    fontFamily: fontFamily.extrabold,
     color: colors.textPrimary,
     letterSpacing: -0.5,
   },
   displayMedium: {
     fontSize: 32,
-    fontWeight: '700' as const,
+    fontWeight: '800' as const,
+    fontFamily: fontFamily.extrabold,
     color: colors.textPrimary,
     letterSpacing: -0.3,
   },
   screenTitle: {
     fontSize: 28,
     fontWeight: '700' as const,
+    fontFamily: fontFamily.bold,
     color: colors.textPrimary,
     letterSpacing: -0.3,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600' as const,
+    fontFamily: fontFamily.semibold,
     color: colors.textPrimary,
     letterSpacing: 0,
   },
   heading: {
     fontSize: 22,
     fontWeight: '700' as const,
+    fontFamily: fontFamily.bold,
     color: colors.textPrimary,
   },
-  
-  // Body text (rounded, friendly)
+
+  // Body text
   bodyLarge: {
     fontSize: 17,
     fontWeight: '400' as const,
+    fontFamily: fontFamily.regular,
     color: colors.textSecondary,
     lineHeight: 24,
   },
   body: {
     fontSize: 15,
     fontWeight: '400' as const,
+    fontFamily: fontFamily.regular,
     color: colors.textSecondary,
     lineHeight: 22,
   },
   bodySmall: {
     fontSize: 14,
     fontWeight: '400' as const,
+    fontFamily: fontFamily.regular,
     color: colors.textSecondary,
     lineHeight: 20,
   },
-  
+
   // UI elements
   caption: {
     fontSize: 12,
     fontWeight: '500' as const,
+    fontFamily: fontFamily.medium,
     color: colors.textMuted,
   },
   captionSmall: {
     fontSize: 11,
     fontWeight: '500' as const,
+    fontFamily: fontFamily.medium,
     color: colors.textMuted,
     letterSpacing: 0.3,
   },
   label: {
     fontSize: 14,
     fontWeight: '600' as const,
+    fontFamily: fontFamily.semibold,
     color: colors.textPrimary,
   },
   labelUppercase: {
     fontSize: 12,
     fontWeight: '600' as const,
+    fontFamily: fontFamily.semibold,
     color: colors.textSecondary,
     letterSpacing: 1.2,
     textTransform: 'uppercase' as const,
   },
-  
+
   // Buttons
   buttonLarge: {
     fontSize: 17,
     fontWeight: '600' as const,
+    fontFamily: fontFamily.semibold,
     color: colors.textLight,
   },
   buttonPrimary: {
     fontSize: 16,
     fontWeight: '600' as const,
+    fontFamily: fontFamily.semibold,
     color: colors.textLight,
   },
   buttonSecondary: {
     fontSize: 16,
     fontWeight: '600' as const,
+    fontFamily: fontFamily.semibold,
     color: colors.primary,
   },
-  
+
   // Stats & numbers
   statNumber: {
     fontSize: 24,
     fontWeight: '700' as const,
+    fontFamily: fontFamily.bold,
     color: colors.textPrimary,
   },
   statLabel: {
     fontSize: 12,
     fontWeight: '500' as const,
+    fontFamily: fontFamily.medium,
     color: colors.textMuted,
   },
 } as const;
