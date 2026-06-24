@@ -1,7 +1,5 @@
 import React from 'react';
-import { TouchableOpacity } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { Ionicons } from '@expo/vector-icons';
 
 import FriendsListScreen from '../screens/friends/FriendsListScreen';
 import AddFriendScreen from '../screens/friends/AddFriendScreen';
@@ -40,26 +38,14 @@ export default function FriendsNavigator() {
           headerShown: false,
         })}
       />
-      <Stack.Screen 
-        name="FriendProfile" 
+      <Stack.Screen
+        name="FriendProfile"
         component={FriendProfileScreen}
-        options={({ navigation }) => ({
-          headerTitle: 'Edit Contact',
+        options={{
+          headerShown: false,
           animation: 'slide_from_right',
           presentation: 'card',
-          headerLeft: ({ canGoBack }) => (
-            canGoBack ? (
-              <TouchableOpacity
-                onPress={() => navigation.goBack()}
-                style={{ paddingHorizontal: 16 }}
-                accessibilityRole="button"
-                accessibilityLabel="Back to friends list"
-              >
-                <Ionicons name="arrow-back" size={24} color={colors.primary} />
-              </TouchableOpacity>
-            ) : null
-          ),
-        })}
+        }}
       />
       <Stack.Screen 
         name="SyncContacts" 

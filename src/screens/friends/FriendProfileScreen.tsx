@@ -2,12 +2,10 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
   TouchableOpacity, Image, Alert, ActivityIndicator,
-  Dimensions, KeyboardAvoidingView, Platform, Modal,
+  KeyboardAvoidingView, Platform, Modal,
 } from 'react-native';
-import type { ViewStyle, TextStyle, ImageStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -29,17 +27,12 @@ import {
   spacing,
   radius,
   typography,
-  layout,
   shadow,
-  animations,
 } from '../../styles/theme';
 import { GradientButton } from '../../components';
 import { useEvents } from '../../hooks/useEvents';
 import { getOrCreateLocalUserId } from '../../utils/localUser';
 import type { EventType } from '../../types';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const HERO_HEIGHT = SCREEN_HEIGHT * 0.35;
 
 type FriendProfileRouteProp = RouteProp<FriendsStackParamList, 'FriendProfile'>;
 type FriendProfileNavProp = StackNavigationProp<FriendsStackParamList, 'FriendProfile'>;
@@ -91,13 +84,6 @@ const formatEventDate = (iso: string) => {
   const date = new Date(dateStr);
   if (Number.isNaN(date.getTime())) return iso;
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-};
-
-const daysSince = (dateIso?: string | null) => {
-  if (!dateIso) return null;
-  const t = new Date(dateIso).getTime();
-  const now = Date.now();
-  return Math.max(0, Math.floor((now - t) / (1000 * 60 * 60 * 24)));
 };
 
 export default function FriendProfileScreen() {
@@ -211,15 +197,6 @@ export default function FriendProfileScreen() {
     })();
   }, [friendId, contactId]);
 
-  const lastContactedDisplay = useMemo(() => {
-    if (!contact?.lastContacted) return null;
-    const days = daysSince(contact.lastContacted);
-    if (days === null) return null;
-    if (days === 0) return 'Today';
-    if (days === 1) return 'Yesterday';
-    return `${days} days ago`;
-  }, [contact]);
-
   const relatedEvents = useMemo(() => {
     if (!contact) return [] as CalendarEvent[];
     return events.filter(event => event.contactId === contact.id);
@@ -324,11 +301,17 @@ export default function FriendProfileScreen() {
     );
   }
 
-  const fullName = [firstName, lastName].filter(Boolean).join(' ') || 'Friend';
-  const cadenceConfig = CONTACT_FREQUENCY_CONFIG[contactFrequency];
-
   return (
     <View style={styles.container}>
+      <SafeAreaView style={styles.topBar} edges={['top']}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
+        </TouchableOpacity>
+      </SafeAreaView>
+
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -338,78 +321,29 @@ export default function FriendProfileScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Hero Section */}
-          <View style={styles.heroSection}>
-            <Image
-              source={profileImage ? { uri: resolveProfileImageUri(profileImage) } : require('../../../assets/default_photo.png')}
-              style={styles.heroImage}
-              resizeMode="cover"
-            />
-            <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.8)']}
-              locations={[0, 0.5, 1]}
-              style={styles.heroGradient}
-            />
-
-            {/* Back button */}
-            <SafeAreaView style={styles.backButtonContainer} edges={['top']}>
-              <TouchableOpacity
-                style={styles.backButton}
-                onPress={() => navigation.goBack()}
+          {/* Profile photo */}
+          <View style={styles.avatarSection}>
+            <TouchableOpacity onPress={pickImage} activeOpacity={0.8}>
+              <LinearGradient
+                colors={[...gradients.storyRing]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.profileImageRing}
               >
-                <BlurView intensity={50} tint="dark" style={styles.backButtonBlur}>
-                  <Ionicons name="chevron-back" size={24} color={colors.textLight} />
-                </BlurView>
-              </TouchableOpacity>
-            </SafeAreaView>
-
-            {/* Hero content */}
-            <View style={styles.heroContent}>
-              {/* Profile Image */}
-              <TouchableOpacity onPress={pickImage} activeOpacity={0.8}>
-                <LinearGradient
-                  colors={[...gradients.storyRing]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.profileImageRing}
-                >
-                  <View style={styles.profileImageInner}>
-                    {profileImage ? (
-                      <Image source={{ uri: resolveProfileImageUri(profileImage) }} style={styles.profileImage} />
-                    ) : (
-                      <View style={styles.profileImagePlaceholder}>
-                        <Ionicons name="camera" size={32} color={colors.textMuted} />
-                      </View>
-                    )}
-                  </View>
-                </LinearGradient>
-                <View style={styles.editBadge}>
-                  <Ionicons name="pencil" size={12} color={colors.textLight} />
+                <View style={styles.profileImageInner}>
+                  {profileImage ? (
+                    <Image source={{ uri: resolveProfileImageUri(profileImage) }} style={styles.profileImage} />
+                  ) : (
+                    <View style={styles.profileImagePlaceholder}>
+                      <Ionicons name="camera" size={40} color={colors.textMuted} />
+                    </View>
+                  )}
                 </View>
-              </TouchableOpacity>
-
-              <Text style={styles.heroName}>{fullName}</Text>
-              
-              {/* Stats row */}
-              <View style={styles.statsRow}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{lastContactedDisplay || '—'}</Text>
-                  <Text style={styles.statLabel}>Last Contact</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{relatedEvents.length}</Text>
-                  <Text style={styles.statLabel}>Events</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <View style={[styles.cadencePillSmall, { backgroundColor: cadenceConfig.color }]}>
-                    <Text style={styles.cadencePillText}>{cadenceConfig.shortLabel}</Text>
-                  </View>
-                  <Text style={styles.statLabel}>Cadence</Text>
-                </View>
+              </LinearGradient>
+              <View style={styles.editBadge}>
+                <Ionicons name="pencil" size={12} color={colors.textLight} />
               </View>
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* Form Section */}
@@ -701,69 +635,51 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
 
-  // Hero section
-  heroSection: {
-    height: HERO_HEIGHT,
-    position: 'relative',
-  },
-  heroImage: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-  },
-  heroGradient: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-  },
-  backButtonContainer: {
-    position: 'absolute',
-    top: 0,
-    left: spacing.lg,
+  // Top bar
+  topBar: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm,
   },
   backButton: {
-    marginTop: spacing.sm,
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  backButtonBlur: {
     width: 40,
     height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colors.surface,
+    ...shadow.sm,
   },
-  heroContent: {
-    position: 'absolute',
-    bottom: spacing.xxl,
-    left: 0,
-    right: 0,
+
+  // Profile photo
+  avatarSection: {
     alignItems: 'center',
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xl,
   },
   profileImageRing: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
+    width: 168,
+    height: 168,
+    borderRadius: 84,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.md,
   },
   profileImageInner: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: colors.surface,
+    width: 156,
+    height: 156,
+    borderRadius: 78,
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
   profileImage: {
-    width: 94,
-    height: 94,
-    borderRadius: 47,
+    width: 148,
+    height: 148,
+    borderRadius: 74,
   },
   profileImagePlaceholder: {
-    width: 94,
-    height: 94,
-    borderRadius: 47,
+    width: 148,
+    height: 148,
+    borderRadius: 74,
     backgroundColor: colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
@@ -771,7 +687,7 @@ const styles = StyleSheet.create({
   editBadge: {
     position: 'absolute',
     bottom: 12,
-    right: 4,
+    right: 12,
     width: 28,
     height: 28,
     borderRadius: 14,
@@ -781,65 +697,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.surface,
   },
-  heroName: {
-    ...typography.displayMedium,
-    color: colors.textLight,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: radius.xxl,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  statItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.textLight,
-    marginBottom: spacing.xxs,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.7)',
-  },
-  statDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    marginHorizontal: spacing.md,
-  },
-  cadencePillSmall: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs,
-    borderRadius: radius.pill,
-  },
-  cadencePillText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textLight,
-  },
 
   // Form section
   formSection: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radius.xxxl,
-    borderTopRightRadius: radius.xxxl,
-    marginTop: -spacing.xxl,
-    padding: spacing.xl,
-    paddingTop: spacing.xxl,
-    minHeight: SCREEN_HEIGHT - HERO_HEIGHT + spacing.xxl,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xl,
   },
   fieldRow: {
     flexDirection: 'row',
@@ -854,7 +716,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   input: {
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.backgroundSunken,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderRadius: radius.lg,
@@ -873,7 +735,7 @@ const styles = StyleSheet.create({
   datePickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.backgroundSunken,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,

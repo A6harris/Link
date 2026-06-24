@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
-  View, Text, Modal, Image, TouchableOpacity, StyleSheet, Platform,
+  View, Text, Modal, Image, TouchableOpacity, StyleSheet, Platform, Animated, Dimensions,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,6 +10,8 @@ import { colors, gradients, spacing, radius, typography, shadow } from '../../..
 import { fullName } from '../homeUtils';
 import { resolveProfileImageUri } from '../../../utils/imageUtils';
 import type { ConnectionSuggestion } from '../homeTypes';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 type Props = {
   visible: boolean;
@@ -32,11 +34,36 @@ export function SuggestionDetailModal({
   onContactedRecently,
   onShuffle,
 }: Props) {
+  // Fade the blurred backdrop over the whole screen, then slide only the card up.
+  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+
+  useEffect(() => {
+    if (visible) {
+      translateY.setValue(SCREEN_HEIGHT);
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        damping: 22,
+        stiffness: 220,
+        mass: 0.9,
+      }).start();
+    }
+  }, [visible, translateY]);
+
+  // Slide the card back down before unmounting so dismiss mirrors the pop-up.
+  const handleDismiss = useCallback(() => {
+    Animated.timing(translateY, {
+      toValue: SCREEN_HEIGHT,
+      duration: 240,
+      useNativeDriver: true,
+    }).start(() => onDismiss());
+  }, [onDismiss, translateY]);
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onDismiss}>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={handleDismiss}>
       <View style={styles.backdrop}>
         <BlurView intensity={20} style={StyleSheet.absoluteFill} tint="dark" />
-        <View style={styles.card}>
+        <Animated.View style={[styles.card, { transform: [{ translateY }] }]}>
           {suggestion && (
             <>
               <View style={styles.imageContainer}>
@@ -82,12 +109,12 @@ export function SuggestionDetailModal({
                 </TouchableOpacity>
               </View>
 
-              <TouchableOpacity style={styles.dismissBtn} onPress={onDismiss}>
+              <TouchableOpacity style={styles.dismissBtn} onPress={handleDismiss}>
                 <Text style={styles.dismissText}>Dismiss</Text>
               </TouchableOpacity>
             </>
           )}
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -99,7 +126,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   card: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     borderTopLeftRadius: radius.xxxl,
     borderTopRightRadius: radius.xxxl,
     paddingHorizontal: spacing.xl,
@@ -122,7 +149,7 @@ const styles = StyleSheet.create({
     width: 130,
     height: 130,
     borderRadius: 65,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },

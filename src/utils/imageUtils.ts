@@ -1,13 +1,16 @@
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 
-const MAX_PROFILE_SIZE = 400;
+const MAX_PROFILE_SIZE = 1024;
 
 export async function resizeProfileImage(uri: string): Promise<string> {
+  // Only constrain width — passing both width and height forces an exact box and
+  // distorts non-square photos. With width alone the height scales to preserve
+  // aspect ratio. High quality so enlarging to fill the hero stays crisp.
   const result = await manipulateAsync(
     uri,
-    [{ resize: { width: MAX_PROFILE_SIZE, height: MAX_PROFILE_SIZE } }],
-    { compress: 0.8, format: SaveFormat.JPEG }
+    [{ resize: { width: MAX_PROFILE_SIZE } }],
+    { compress: 0.92, format: SaveFormat.JPEG }
   );
   return result.uri;
 }

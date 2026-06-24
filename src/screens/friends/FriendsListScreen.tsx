@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,9 @@ import {
   TouchableOpacity,
   Image,
   RefreshControl,
-  Dimensions,
   TextInput,
   Modal,
 } from 'react-native';
-import type { ViewStyle, TextStyle, ImageStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,13 +30,10 @@ import {
   spacing,
   radius,
   typography,
-  layout,
   shadow,
-  avatarSizes,
 } from '../../styles/theme';
 import { GradientButton } from '../../components';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export default function FriendsListScreen() {
   const navigation = useNavigation<StackNavigationProp<FriendsStackParamList, 'FriendsList'>>();
   const [refreshing, setRefreshing] = useState(false);
@@ -103,7 +98,7 @@ export default function FriendsListScreen() {
   };
 
 
-  const renderContactCard = ({ item: c, index }: { item: Contact; index: number }) => {
+  const renderContactCard = ({ item: c }: { item: Contact }) => {
     const name = [c.firstName, c.lastName].filter(Boolean).join(' ') || 'Unnamed';
     const frequency = c.contactFrequency ?? DEFAULT_CONTACT_FREQUENCY;
     const cadenceConfig = CONTACT_FREQUENCY_CONFIG[frequency];
@@ -111,9 +106,9 @@ export default function FriendsListScreen() {
 
     return (
       <TouchableOpacity
-        style={styles.contactCard}
+        style={styles.contactRow}
         onPress={() => navigation.navigate('FriendProfile', { contactId: c.id })}
-        activeOpacity={0.8}
+        activeOpacity={0.6}
       >
         {/* Avatar */}
         <View style={styles.avatarContainer}>
@@ -135,32 +130,28 @@ export default function FriendsListScreen() {
 
         {/* Content */}
         <View style={styles.cardContent}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.name} numberOfLines={1}>{name}</Text>
-          </View>
-          
-          <Text style={styles.lastContacted}>
-            Last: {getLastContactedText(c)}
-          </Text>
+          <Text style={styles.name} numberOfLines={1}>{name}</Text>
 
           <View style={styles.metaRow}>
-            <View style={[styles.cadenceBadge, { backgroundColor: cadenceConfig.color }]}>
-              <Text style={styles.cadenceText}>{cadenceConfig.shortLabel}</Text>
-            </View>
+            <Text style={styles.metaText} numberOfLines={1}>Last: {getLastContactedText(c)}</Text>
+            <Text style={styles.metaDot}>·</Text>
+            <Text style={[styles.metaText, styles.cadenceText, { color: cadenceConfig.color }]} numberOfLines={1}>
+              {cadenceConfig.shortLabel}
+            </Text>
             {birthday && (
-              <View style={styles.birthdayBadge}>
+              <>
+                <Text style={styles.metaDot}>·</Text>
                 <Ionicons name="gift-outline" size={12} color={colors.accent} />
-                <Text style={styles.birthdayText}>{birthday}</Text>
-              </View>
+                <Text style={[styles.metaText, { color: colors.accent }]} numberOfLines={1}>{birthday}</Text>
+              </>
             )}
           </View>
         </View>
-
-        {/* Chevron */}
-        <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
       </TouchableOpacity>
     );
   };
+
+  const renderTopLine = () => <View style={styles.rowLine} />;
 
 
   const renderHeader = () => (
@@ -247,7 +238,8 @@ export default function FriendsListScreen() {
           <FlatList
             data={filteredContacts}
             keyExtractor={(item) => item.id}
-            renderItem={({ item, index }) => renderContactCard({ item, index })}
+            renderItem={({ item }) => renderContactCard({ item })}
+            ListHeaderComponent={renderTopLine}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -400,16 +392,21 @@ const styles = StyleSheet.create({
     padding: spacing.xs,
   },
 
-  // Contact cards
-  contactCard: {
+  // Contact rows (iOS Contacts style: flat, line above and below every row)
+  contactRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
     marginHorizontal: spacing.xl,
-    marginVertical: spacing.xs,
-    padding: spacing.md,
-    borderRadius: radius.xl,
-    ...shadow.sm,
+    paddingVertical: 10,
+    borderBottomWidth: 1.5,
+    borderBottomColor: colors.surfaceBorder,
+  },
+  // Top cap line so the first row is bordered above as well as below.
+  // Inset to match the rows (aligns with the avatar's left edge).
+  rowLine: {
+    height: 1.5,
+    backgroundColor: colors.surfaceBorder,
+    marginHorizontal: spacing.xl,
   },
   avatarContainer: {
     marginRight: spacing.md,
@@ -430,49 +427,27 @@ const styles = StyleSheet.create({
   cardContent: {
     flex: 1,
   },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginBottom: spacing.xxs,
-  },
   name: {
     ...typography.label,
     fontSize: 16,
-    flex: 1,
-  },
-  lastContacted: {
-    ...typography.caption,
-    marginBottom: spacing.sm,
+    marginBottom: 2,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
-  cadenceBadge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs,
-    borderRadius: radius.pill,
+  metaText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    flexShrink: 1,
+  },
+  metaDot: {
+    ...typography.caption,
+    color: colors.textMuted,
   },
   cadenceText: {
-    fontSize: 11,
     fontWeight: '600',
-    color: colors.textLight,
-  },
-  birthdayBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xxs,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs,
-    backgroundColor: colors.accentSoft,
-    borderRadius: radius.pill,
-  },
-  birthdayText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: colors.accent,
   },
 
   // List

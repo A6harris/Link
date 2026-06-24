@@ -28,29 +28,31 @@ export default function MainNavigator() {
   return (
     <View style={styles.container}>
       <Tab.Navigator
+        initialRouteName="Home"
         tabBar={(props) => <FloatingTabBar {...props} />}
         screenOptions={{
           headerShown: false,
         }}
       >
-        {/* Order: Friends, Calendar, Home (center), Settings */}
-        <Tab.Screen 
-          name="Friends" 
+        {/* Order: People (Friends), Home, Calendar, Settings */}
+        <Tab.Screen
+          name="Friends"
           component={FriendsNavigator}
           options={({ route }) => ({
+            tabBarLabel: 'People',
             tabBarStyle: getTabBarVisibility(route) ? undefined : { display: 'none' },
           })}
         />
-        <Tab.Screen 
-          name="Calendar" 
-          component={CalendarScreen}
-        />
-        <Tab.Screen 
-          name="Home" 
+        <Tab.Screen
+          name="Home"
           component={HomeScreen}
         />
         <Tab.Screen
-          name="Settings" 
+          name="Calendar"
+          component={CalendarScreen}
+        />
+        <Tab.Screen
+          name="Settings"
           component={SettingsScreen}
         />
       </Tab.Navigator>

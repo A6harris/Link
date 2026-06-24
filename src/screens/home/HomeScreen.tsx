@@ -3,20 +3,22 @@ import {
   View, StyleSheet, ScrollView, RefreshControl, Alert, Linking, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 import type { MainTabParamList, Contact } from '../../types';
-import { colors, gradients, spacing } from '../../styles/theme';
+import { colors, spacing } from '../../styles/theme';
 import { updateContact } from '../../utils/contactsStorage';
 import { Snackbar } from '../../components';
 import { useLocalConnectionSuggestions } from './useConnectionSuggestions';
 import { fullName, markContactedToday } from './homeUtils';
 import type { ConnectionSuggestion, UndoState } from './homeTypes';
 import { HomeHeader } from './components/HomeHeader';
-import { FeaturedCardSection } from './components/FeaturedCardSection';
-import { AboutFriend } from './components/AboutFriend';
+import { HeroCard } from './components/HeroCard';
+import { HeroMetaBar } from './components/HeroMetaBar';
+import { FriendHighlights } from './components/FriendHighlights';
+import { PeopleWithEventsTile } from './components/PeopleWithEventsTile';
+import { PeopleWithEventsModal } from './components/PeopleWithEventsModal';
 import { HomeEmptyState } from './components/HomeEmptyState';
 import { SuggestionDetailModal } from './components/SuggestionDetailModal';
 
@@ -25,15 +27,19 @@ const SNACKBAR_BOTTOM_OFFSET = 96 + spacing.md;
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
-  const { loading, topSuggestion, refresh, generateNewSuggestion, restoreSuggestion, allContacts, weeklyGoal } =
-    useLocalConnectionSuggestions();
+  const {
+    loading, topSuggestion, refresh, generateNewSuggestion, reloadData, restoreSuggestion,
+    allContacts, events, peopleWithEvents, setHeroContact, weeklyGoal,
+  } = useLocalConnectionSuggestions();
 
   const [refreshing, setRefreshing] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
+  const [peopleVisible, setPeopleVisible] = useState(false);
   const [selected, setSelected] = useState<ConnectionSuggestion | undefined>();
   const [undo, setUndo] = useState<UndoState | null>(null);
 
-  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
+  // Reload contacts/events on focus so edits show up — without re-rolling the suggestion.
+  useFocusEffect(useCallback(() => { reloadData(); }, [reloadData]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -162,39 +168,39 @@ const HomeScreen: React.FC = () => {
     await generateNewSuggestion();
   }, [generateNewSuggestion]);
 
+  const heroContact = topSuggestion ? getContact(topSuggestion.friendId) : undefined;
+
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={[colors.backgroundGradientStart, colors.backgroundGradientEnd] as const}
-        style={StyleSheet.absoluteFill}
-      />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           refreshControl={
             <RefreshControl
-              refreshing={refreshing || loading}
+              refreshing={refreshing}
               onRefresh={onRefresh}
               tintColor={colors.primary}
             />
           }
           showsVerticalScrollIndicator={false}
         >
-          <HomeHeader />
+          <HomeHeader weeklyGoal={weeklyGoal} />
 
           {allContacts.length > 0 && topSuggestion ? (
             <>
-              <FeaturedCardSection
+              <HeroCard
                 suggestion={topSuggestion}
-                weeklyGoal={weeklyGoal}
-                onShuffle={generateNewSuggestion}
                 onPress={() => openDetail(topSuggestion)}
                 onCall={() => performCall(topSuggestion.friendId)}
-                onFaceTime={() => performFaceTime(topSuggestion.friendId)}
-                onMessage={() => performMessage(topSuggestion.friendId)}
                 onContactedRecently={() => performMarkContacted(topSuggestion.friendId)}
+                onShuffle={generateNewSuggestion}
               />
-              <AboutFriend suggestion={topSuggestion} />
+              <HeroMetaBar
+                lastContactedISO={topSuggestion.meta?.lastContactedISO}
+                onMore={() => openDetail(topSuggestion)}
+              />
+              {heroContact && <FriendHighlights contact={heroContact} events={events} />}
+              <PeopleWithEventsTile people={peopleWithEvents} onPress={() => setPeopleVisible(true)} />
             </>
           ) : (
             !loading && <HomeEmptyState onAddContact={navigateToAddFriend} />
@@ -213,6 +219,14 @@ const HomeScreen: React.FC = () => {
         onFaceTime={() => selected && performFaceTime(selected.friendId, true)}
         onContactedRecently={() => selected && performMarkContacted(selected.friendId, true)}
         onShuffle={handleShuffle}
+      />
+
+      <PeopleWithEventsModal
+        visible={peopleVisible}
+        people={peopleWithEvents}
+        events={events}
+        onSelect={(id) => { setHeroContact(id); setPeopleVisible(false); }}
+        onDismiss={() => setPeopleVisible(false)}
       />
 
       <Snackbar

@@ -1,31 +1,29 @@
 import React, { useRef } from 'react';
-import { View, TouchableOpacity, StyleSheet, Dimensions, Platform, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Animated } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
-import { colors, gradients, radius, spacing, shadow } from '../styles/theme';
+import { colors, radius, spacing, shadow, fontFamily } from '../styles/theme';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const TAB_BAR_HEIGHT = 68;
 
 interface TabButtonProps {
   isFocused: boolean;
+  label: string;
   iconName: keyof typeof Ionicons.glyphMap;
   iconNameOutline: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
   onLongPress: () => void;
-  isCenter?: boolean;
 }
 
 function TabButton({
   isFocused,
+  label,
   iconName,
   iconNameOutline,
   onPress,
   onLongPress,
-  isCenter = false,
 }: TabButtonProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -43,29 +41,7 @@ function TabButton({
     }).start();
   };
 
-  // Center button (Home) - always shows gradient style
-  if (isCenter) {
-    return (
-      <Animated.View style={[styles.centerButtonWrapper, { transform: [{ scale: scaleAnim }] }]}>
-        <TouchableOpacity
-          onPress={onPress}
-          onLongPress={onLongPress}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          activeOpacity={0.9}
-        >
-          <LinearGradient
-            colors={[...gradients.primary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.centerButton}
-          >
-            <Ionicons name={isFocused ? iconName : iconNameOutline} size={26} color={colors.textLight} />
-          </LinearGradient>
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  }
+  const tint = isFocused ? colors.primary : colors.textMuted;
 
   return (
     <Animated.View style={[styles.tabButton, { transform: [{ scale: scaleAnim }] }]}>
@@ -77,19 +53,8 @@ function TabButton({
         activeOpacity={0.8}
         style={styles.tabButtonInner}
       >
-        {isFocused ? (
-          <View style={styles.activeTabBackground}>
-            <LinearGradient
-              colors={[colors.primarySoft, colors.accentSoft]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.activeTabGradient}
-            />
-            <Ionicons name={iconName} size={24} color={colors.primary} />
-          </View>
-        ) : (
-          <Ionicons name={iconNameOutline} size={24} color={colors.textMuted} />
-        )}
+        <Ionicons name={isFocused ? iconName : iconNameOutline} size={24} color={tint} />
+        <Text style={[styles.label, { color: tint }]} numberOfLines={1}>{label}</Text>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -123,8 +88,7 @@ export default function FloatingTabBar({ state, descriptors, navigation }: Botto
     return null;
   }
 
-  // Tab order: Friends, Calendar, Home (center), Events, Settings
-  // The state.routes already has them in this order from MainNavigator
+  // Tab order comes from MainNavigator: Home, Calendar, People (Friends), Settings
   return (
     <View style={styles.container}>
       <BlurView intensity={85} tint="light" style={styles.blurContainer}>
@@ -133,9 +97,8 @@ export default function FloatingTabBar({ state, descriptors, navigation }: Botto
             const { options } = descriptors[route.key];
             const isFocused = state.index === index;
             const { filled, outline } = getIconNames(route.name);
-            
-            // Home is at index 2 (center)
-            const isCenter = route.name === 'Home';
+            const label =
+              typeof options.tabBarLabel === 'string' ? options.tabBarLabel : route.name;
 
             const onPress = () => {
               const event = navigation.emit({
@@ -160,11 +123,11 @@ export default function FloatingTabBar({ state, descriptors, navigation }: Botto
               <TabButton
                 key={route.key}
                 isFocused={isFocused}
+                label={label}
                 iconName={filled}
                 iconNameOutline={outline}
                 onPress={onPress}
                 onLongPress={onLongPress}
-                isCenter={isCenter}
               />
             );
           })}
@@ -205,29 +168,11 @@ const styles = StyleSheet.create({
   tabButtonInner: {
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 3,
   },
-  activeTabBackground: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    overflow: 'hidden',
-  },
-  activeTabGradient: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-  },
-  centerButtonWrapper: {
-    marginHorizontal: spacing.xs,
-    ...shadow.glow,
-  },
-  centerButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
+  label: {
+    fontSize: 11,
+    fontWeight: '600',
+    fontFamily: fontFamily.semibold,
   },
 });
