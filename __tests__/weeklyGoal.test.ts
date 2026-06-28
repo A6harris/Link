@@ -1,4 +1,4 @@
-import { computeWeeklyGoal, getWeekBounds } from '../src/screens/home/weeklyGoal';
+import { computeWeeklyGoal, getWeekBounds, resolveWeeklyGoal } from '../src/screens/home/weeklyGoal';
 import type { Contact, ContactFrequency } from '../src/types';
 
 // Wednesday 2026-06-17 — mid-week, so "this week" is Mon 2026-06-15 .. Mon 2026-06-22.
@@ -94,5 +94,68 @@ describe('computeWeeklyGoal', () => {
     // ~87 days out, and not reached during this week → contributes nothing.
     const contacts = [makeContact('q', 'quarterly', daysAgo(3))];
     expect(computeWeeklyGoal(contacts, NOW)).toEqual({ goal: 0, done: 0, remaining: 0 });
+  });
+});
+
+describe('resolveWeeklyGoal', () => {
+  const weekStart = getWeekBounds(NOW).weekStart;
+
+  // Helper mirroring the screen flow: marking someone contacted sets their
+  // lastContacted to "now" (this week).
+  function markContacted(c: Contact): Contact {
+    return { ...c, lastContacted: NOW.toISOString() };
+  }
+
+  it('establishes the week target when there is no snapshot', () => {
+    const contacts = Array.from({ length: 20 }, (_, i) => makeContact(`n${i}`, 'monthly', null));
+    const { goal, snapshot } = resolveWeeklyGoal(contacts, null, NOW);
+    expect(goal).toEqual({ goal: 7, done: 0, remaining: 7 });
+    expect(snapshot).toEqual({ weekStart, target: 7 });
+  });
+
+  it('decrements remaining by one per contact even when backlog exceeds the cap', () => {
+    // 20 overdue contacts → capped target of 7. This is the bug scenario: with a
+    // live recompute, marking a backlog contact would leave remaining pinned at 7
+    // because the cap stays full while `done` climbs.
+    let contacts = Array.from({ length: 20 }, (_, i) => makeContact(`n${i}`, 'monthly', null));
+    const snapshot = { weekStart, target: 7 };
+
+    contacts = contacts.map((c, i) => (i === 0 ? markContacted(c) : c));
+    expect(resolveWeeklyGoal(contacts, snapshot, NOW).goal).toEqual({ goal: 7, done: 1, remaining: 6 });
+
+    contacts = contacts.map((c, i) => (i === 1 ? markContacted(c) : c));
+    expect(resolveWeeklyGoal(contacts, snapshot, NOW).goal).toEqual({ goal: 7, done: 2, remaining: 5 });
+  });
+
+  it('reaches "all caught up" once the frozen target is met', () => {
+    const contacts = Array.from({ length: 20 }, (_, i) =>
+      i < 7 ? markContacted(makeContact(`n${i}`, 'monthly', null)) : makeContact(`n${i}`, 'monthly', null),
+    );
+    expect(resolveWeeklyGoal(contacts, { weekStart, target: 7 }, NOW).goal).toEqual({
+      goal: 7,
+      done: 7,
+      remaining: 0,
+    });
+  });
+
+  it('lets the displayed goal grow past the frozen target for bonus connections', () => {
+    // 8 of the 20 reached — one past the frozen target of 7. The denominator
+    // grows with `done` so the bar never overflows; remaining stays at 0.
+    const contacts = Array.from({ length: 20 }, (_, i) =>
+      i < 8 ? markContacted(makeContact(`n${i}`, 'monthly', null)) : makeContact(`n${i}`, 'monthly', null),
+    );
+    expect(resolveWeeklyGoal(contacts, { weekStart, target: 7 }, NOW).goal).toEqual({
+      goal: 8,
+      done: 8,
+      remaining: 0,
+    });
+  });
+
+  it('re-establishes the target when the week rolls over', () => {
+    const lastWeekStart = weekStart - 7 * MS_PER_DAY;
+    const contacts = Array.from({ length: 3 }, (_, i) => makeContact(`n${i}`, 'monthly', null));
+    const { goal, snapshot } = resolveWeeklyGoal(contacts, { weekStart: lastWeekStart, target: 7 }, NOW);
+    expect(snapshot).toEqual({ weekStart, target: 3 });
+    expect(goal).toEqual({ goal: 3, done: 0, remaining: 3 });
   });
 });
