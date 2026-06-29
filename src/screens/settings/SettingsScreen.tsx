@@ -13,6 +13,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   Linking,
+  Switch,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
@@ -41,7 +42,22 @@ import {
   shadow,
   avatarSizes,
 } from '../../styles/theme';
-import { CallAvailability, DayOfWeek } from '../../types';
+import { DayOfWeek, NotificationSettings } from '../../types';
+import {
+  loadNotificationSettings,
+  saveNotificationSettings,
+  DEFAULT_NOTIFICATION_SETTINGS,
+} from '../../utils/notificationSettings';
+import {
+  requestNotificationPermission,
+  rescheduleNotifications,
+  cancelAllNotifications,
+  sendTestNotification,
+} from '../../utils/notifications';
+import {
+  submitFeatureRequest,
+  isFeatureRequestConfigured,
+} from '../../utils/featureRequest';
 
 interface ProfileFormData {
   firstName: string;
@@ -53,7 +69,6 @@ interface ProfileFormData {
   location: string;
   birthday: string | null;
   profileImage?: string;
-  callAvailability?: CallAvailability;
 }
 
 interface SettingsItemProps {
@@ -96,12 +111,6 @@ const DAYS_OF_WEEK: { key: DayOfWeek; label: string; short: string }[] = [
   { key: 'saturday', label: 'Saturday', short: 'S' },
   { key: 'sunday', label: 'Sunday', short: 'S' },
 ];
-
-const DEFAULT_CALL_AVAILABILITY: CallAvailability = {
-  startTime: '09:00',
-  endTime: '21:00',
-  daysAvailable: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-};
 
 // Helper to parse time string "HH:MM" into Date
 function parseTimeToDate(timeStr: string): Date {
@@ -160,41 +169,43 @@ export default function SettingsScreen() {
     location: '',
     birthday: null,
     profileImage: undefined,
-    callAvailability: DEFAULT_CALL_AVAILABILITY,
   });
+
+  // Notification settings (local reminders)
+  const [notif, setNotif] = useState<NotificationSettings>(DEFAULT_NOTIFICATION_SETTINGS);
 
   // Modal states
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
-  const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
-  
+  const [showNotifModal, setShowNotifModal] = useState(false);
+  const [showFeatureModal, setShowFeatureModal] = useState(false);
+
+  // Feature request form state
+  const [featureMessage, setFeatureMessage] = useState('');
+  const [featureName, setFeatureName] = useState('');
+  const [featureSubmitting, setFeatureSubmitting] = useState(false);
+
   // Time picker states
-  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
-  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [showBirthdayPicker, setShowBirthdayPicker] = useState(false);
 
   // Temporary edit states
   const [editProfile, setEditProfile] = useState<Partial<ProfileFormData>>({});
-  const [editAvailability, setEditAvailability] = useState<CallAvailability>(DEFAULT_CALL_AVAILABILITY);
+  const [editNotif, setEditNotif] = useState<NotificationSettings>(DEFAULT_NOTIFICATION_SETTINGS);
 
   useEffect(() => {
-    const loadProfile = async () => {
+    const loadSettings = async () => {
       try {
-        const [storedProfile, storedAvailability] = await Promise.all([
-          AsyncStorage.getItem('@link_profile'),
-          AsyncStorage.getItem('@link_availability'),
-        ]);
+        const storedProfile = await AsyncStorage.getItem('@link_profile');
         if (storedProfile) {
           setProfile(prev => ({ ...prev, ...JSON.parse(storedProfile) }));
         }
-        if (storedAvailability) {
-          setProfile(prev => ({ ...prev, callAvailability: JSON.parse(storedAvailability) }));
-        }
+        setNotif(await loadNotificationSettings());
       } catch {
-        // profile stays at defaults if storage read fails
+        // settings stay at defaults if storage read fails
       }
     };
-    loadProfile();
+    loadSettings();
   }, []);
 
   // Open edit profile modal
@@ -209,37 +220,109 @@ export default function SettingsScreen() {
     setProfile(updated);
     setShowEditProfileModal(false);
     try {
-      const { callAvailability, ...profileData } = updated;
-      await AsyncStorage.setItem('@link_profile', JSON.stringify(profileData));
+      await AsyncStorage.setItem('@link_profile', JSON.stringify(updated));
     } catch {
       // data remains in state for this session
     }
   }, [editProfile, profile]);
 
-  // Open availability modal
-  const handleEditAvailability = useCallback(() => {
-    setEditAvailability(profile.callAvailability || DEFAULT_CALL_AVAILABILITY);
-    setShowAvailabilityModal(true);
-  }, [profile.callAvailability]);
-
-  // Save availability changes
-  const handleSaveAvailability = useCallback(async () => {
-    setProfile(prev => ({ ...prev, callAvailability: editAvailability }));
-    setShowAvailabilityModal(false);
-    try {
-      await AsyncStorage.setItem('@link_availability', JSON.stringify(editAvailability));
-    } catch {
-      // availability remains in state for this session
+  // Master notifications toggle. Turning on requests OS permission first; if the
+  // user declines we leave it off and point them to device Settings.
+  const handleToggleEnabled = useCallback(async (value: boolean) => {
+    if (value) {
+      const granted = await requestNotificationPermission();
+      if (!granted) {
+        Alert.alert(
+          'Notifications are off',
+          'To get reminders, enable notifications for Link in your device Settings.',
+        );
+        return;
+      }
     }
-  }, [editAvailability]);
+    const next = { ...notif, enabled: value };
+    setNotif(next);
+    await saveNotificationSettings(next);
+    if (value) {
+      await rescheduleNotifications();
+    } else {
+      await cancelAllNotifications();
+    }
+  }, [notif]);
 
-  // Toggle day availability
+  // Birthday reminders toggle.
+  const handleToggleBirthdays = useCallback(async (value: boolean) => {
+    const next = { ...notif, birthdaysEnabled: value };
+    setNotif(next);
+    await saveNotificationSettings(next);
+    await rescheduleNotifications();
+  }, [notif]);
+
+  // Open schedule modal
+  const handleEditSchedule = useCallback(() => {
+    setEditNotif(notif);
+    setShowNotifModal(true);
+  }, [notif]);
+
+  // Save schedule changes
+  const handleSaveSchedule = useCallback(async () => {
+    setNotif(editNotif);
+    setShowNotifModal(false);
+    await saveNotificationSettings(editNotif);
+    await rescheduleNotifications();
+  }, [editNotif]);
+
+  // Open the feature request form. Prefill the name from the saved profile so
+  // the user can keep or clear it — it's optional either way.
+  const handleOpenFeatureRequest = useCallback(() => {
+    setFeatureMessage('');
+    setFeatureName(`${profile.firstName} ${profile.lastName}`.trim());
+    setShowFeatureModal(true);
+  }, [profile.firstName, profile.lastName]);
+
+  // Submit a feature request / idea. Prefills name & email from the saved
+  // profile so the team can follow up, then hands off to the Apps Script.
+  const handleSubmitFeatureRequest = useCallback(async () => {
+    const message = featureMessage.trim();
+    if (!message) {
+      Alert.alert('Add a few words', 'Tell us about the feature or idea you have in mind.');
+      return;
+    }
+    setFeatureSubmitting(true);
+    const result = await submitFeatureRequest({
+      message,
+      name: featureName,
+      email: profile.email,
+    });
+    setFeatureSubmitting(false);
+
+    if (result.ok) {
+      setShowFeatureModal(false);
+      setFeatureMessage('');
+      setFeatureName('');
+      Alert.alert('Thank you! 💜', 'Your idea has been sent. We read every single one.');
+      return;
+    }
+
+    if (result.reason === 'not-configured') {
+      Alert.alert(
+        'Not available yet',
+        'Feature requests aren’t set up in this build. Please try again after the next update.',
+      );
+    } else {
+      Alert.alert(
+        'Couldn’t send',
+        'Something went wrong sending your idea. Please check your connection and try again.',
+      );
+    }
+  }, [featureMessage, featureName, profile.email]);
+
+  // Toggle a day in the schedule editor
   const toggleDay = useCallback((day: DayOfWeek) => {
-    setEditAvailability(prev => {
-      const daysAvailable = prev.daysAvailable.includes(day)
-        ? prev.daysAvailable.filter(d => d !== day)
-        : [...prev.daysAvailable, day];
-      return { ...prev, daysAvailable };
+    setEditNotif(prev => {
+      const days = prev.days.includes(day)
+        ? prev.days.filter(d => d !== day)
+        : [...prev.days, day];
+      return { ...prev, days };
     });
   }, []);
 
@@ -316,22 +399,13 @@ export default function SettingsScreen() {
     );
   }, []);
 
-  // Handle time picker changes
-  const handleStartTimeChange = useCallback((event: any, date?: Date) => {
+  // Handle notification time picker change
+  const handleTimeChange = useCallback((event: any, date?: Date) => {
     if (Platform.OS === 'android') {
-      setShowStartTimePicker(false);
+      setShowTimePicker(false);
     }
     if (date) {
-      setEditAvailability(prev => ({ ...prev, startTime: formatDateToTime(date) }));
-    }
-  }, []);
-
-  const handleEndTimeChange = useCallback((event: any, date?: Date) => {
-    if (Platform.OS === 'android') {
-      setShowEndTimePicker(false);
-    }
-    if (date) {
-      setEditAvailability(prev => ({ ...prev, endTime: formatDateToTime(date) }));
+      setEditNotif(prev => ({ ...prev, time: formatDateToTime(date) }));
     }
   }, []);
 
@@ -352,12 +426,12 @@ export default function SettingsScreen() {
     return 'Add your information';
   };
 
-  // Get availability summary
-  const getAvailabilitySummary = () => {
-    const availability = profile.callAvailability || DEFAULT_CALL_AVAILABILITY;
-    const dayCount = availability.daysAvailable.length;
-    const timeRange = `${formatTimeDisplay(availability.startTime)} - ${formatTimeDisplay(availability.endTime)}`;
-    return `${dayCount} days, ${timeRange}`;
+  // Get notification schedule summary
+  const getScheduleSummary = () => {
+    if (!notif.enabled) return 'Off';
+    const dayCount = notif.days.length;
+    if (dayCount === 0) return `No days selected, ${formatTimeDisplay(notif.time)}`;
+    return `${dayCount} ${dayCount === 1 ? 'day' : 'days'}, ${formatTimeDisplay(notif.time)}`;
   };
 
   return (
@@ -443,15 +517,56 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          {/* Availability Section */}
+          {/* Notifications Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>CALL AVAILABILITY</Text>
+            <Text style={styles.sectionTitle}>NOTIFICATIONS</Text>
             <View style={styles.sectionCard}>
               <SettingsItem
+                icon="notifications-outline"
+                title="Reminders"
+                subtitle="Gentle nudges to reach out"
+                showArrow={false}
+                rightElement={
+                  <Switch
+                    value={notif.enabled}
+                    onValueChange={handleToggleEnabled}
+                    trackColor={{ false: colors.surfaceBorder, true: colors.primary }}
+                  />
+                }
+              />
+              <View style={styles.divider} />
+              <SettingsItem
                 icon="time-outline"
-                title="Available Hours"
-                subtitle={getAvailabilitySummary()}
-                onPress={handleEditAvailability}
+                title="Schedule"
+                subtitle={getScheduleSummary()}
+                onPress={handleEditSchedule}
+              />
+              <View style={styles.divider} />
+              <SettingsItem
+                icon="gift-outline"
+                title="Birthday Reminders"
+                subtitle="Morning-of birthday alerts"
+                showArrow={false}
+                rightElement={
+                  <Switch
+                    value={notif.birthdaysEnabled}
+                    onValueChange={handleToggleBirthdays}
+                    trackColor={{ false: colors.surfaceBorder, true: colors.primary }}
+                  />
+                }
+              />
+            </View>
+          </View>
+
+          {/* Feedback Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>FEEDBACK</Text>
+            <View style={styles.sectionCard}>
+              <SettingsItem
+                icon="bulb-outline"
+                title="Request a Feature"
+                subtitle="Share an idea to make Link better"
+                onPress={handleOpenFeatureRequest}
               />
             </View>
           </View>
@@ -731,90 +846,58 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* Call Availability Modal */}
+      {/* Notification Schedule Modal */}
       <Modal
-        visible={showAvailabilityModal}
+        visible={showNotifModal}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setShowAvailabilityModal(false)}
+        onRequestClose={() => setShowNotifModal(false)}
       >
         <SafeAreaView style={styles.modalSafeArea}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowAvailabilityModal(false)}>
+            <TouchableOpacity onPress={() => setShowNotifModal(false)}>
               <Text style={styles.modalCancel}>Cancel</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Call Availability</Text>
-            <TouchableOpacity onPress={handleSaveAvailability}>
+            <Text style={styles.modalTitle}>Schedule</Text>
+            <TouchableOpacity onPress={handleSaveSchedule}>
               <Text style={styles.modalSave}>Save</Text>
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
             <Text style={styles.availabilityDescription}>
-              Set the times when you're available for calls. Friends will see this when they want to reach out.
+              Pick the days and time you'd like a gentle reminder to reach out. We only nudge you when someone's actually due — never just to pull you back in.
             </Text>
 
-            {/* Time Range */}
-            <Text style={styles.formSectionTitle}>AVAILABLE HOURS</Text>
-            
-            <View style={styles.timeRangeContainer}>
-              <View style={styles.timePickerGroup}>
-                <Text style={styles.timeLabel}>From</Text>
-                <TouchableOpacity
-                  style={styles.timeButton}
-                  onPress={() => setShowStartTimePicker(true)}
-                >
-                  <Ionicons name="time-outline" size={20} color={colors.primary} />
-                  <Text style={styles.timeButtonText}>
-                    {formatTimeDisplay(editAvailability.startTime)}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+            {/* Time */}
+            <Text style={styles.formSectionTitle}>REMINDER TIME</Text>
 
-              <View style={styles.timeArrow}>
-                <Ionicons name="arrow-forward" size={20} color={colors.textMuted} />
-              </View>
+            <TouchableOpacity
+              style={styles.timeButton}
+              onPress={() => setShowTimePicker(true)}
+            >
+              <Ionicons name="time-outline" size={20} color={colors.primary} />
+              <Text style={styles.timeButtonText}>
+                {formatTimeDisplay(editNotif.time)}
+              </Text>
+            </TouchableOpacity>
 
-              <View style={styles.timePickerGroup}>
-                <Text style={styles.timeLabel}>To</Text>
-                <TouchableOpacity
-                  style={styles.timeButton}
-                  onPress={() => setShowEndTimePicker(true)}
-                >
-                  <Ionicons name="time-outline" size={20} color={colors.primary} />
-                  <Text style={styles.timeButtonText}>
-                    {formatTimeDisplay(editAvailability.endTime)}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {showStartTimePicker && (
+            {showTimePicker && (
               <DateTimePicker
-                value={parseTimeToDate(editAvailability.startTime)}
+                value={parseTimeToDate(editNotif.time)}
                 mode="time"
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={handleStartTimeChange}
-                minuteInterval={15}
-              />
-            )}
-
-            {showEndTimePicker && (
-              <DateTimePicker
-                value={parseTimeToDate(editAvailability.endTime)}
-                mode="time"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={handleEndTimeChange}
+                onChange={handleTimeChange}
                 minuteInterval={15}
               />
             )}
 
             {/* Days of Week */}
-            <Text style={[styles.formSectionTitle, { marginTop: spacing.xxl }]}>AVAILABLE DAYS</Text>
-            
+            <Text style={[styles.formSectionTitle, { marginTop: spacing.xxl }]}>REMINDER DAYS</Text>
+
             <View style={styles.daysContainer}>
               {DAYS_OF_WEEK.map((day) => {
-                const isSelected = editAvailability.daysAvailable.includes(day.key);
+                const isSelected = editNotif.days.includes(day.key);
                 return (
                   <TouchableOpacity
                     key={day.key}
@@ -844,7 +927,7 @@ export default function SettingsScreen() {
                   key={day.key}
                   style={[
                     styles.dayLegendText,
-                    editAvailability.daysAvailable.includes(day.key) && styles.dayLegendTextSelected,
+                    editNotif.days.includes(day.key) && styles.dayLegendTextSelected,
                   ]}
                 >
                   {day.label.slice(0, 3)}
@@ -858,38 +941,135 @@ export default function SettingsScreen() {
             <View style={styles.presetsContainer}>
               <TouchableOpacity
                 style={styles.presetButton}
-                onPress={() => setEditAvailability(prev => ({
+                onPress={() => setEditNotif(prev => ({
                   ...prev,
-                  daysAvailable: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+                  days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
                 }))}
               >
                 <Text style={styles.presetButtonText}>Weekdays Only</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={styles.presetButton}
-                onPress={() => setEditAvailability(prev => ({
+                onPress={() => setEditNotif(prev => ({
                   ...prev,
-                  daysAvailable: ['saturday', 'sunday'],
+                  days: ['saturday', 'sunday'],
                 }))}
               >
                 <Text style={styles.presetButtonText}>Weekends Only</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={styles.presetButton}
-                onPress={() => setEditAvailability(prev => ({
+                onPress={() => setEditNotif(prev => ({
                   ...prev,
-                  daysAvailable: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+                  days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
                 }))}
               >
                 <Text style={styles.presetButtonText}>Every Day</Text>
               </TouchableOpacity>
             </View>
 
+            {/* Send a test so the user can confirm delivery */}
+            <TouchableOpacity
+              style={styles.testButton}
+              onPress={sendTestNotification}
+            >
+              <Ionicons name="paper-plane-outline" size={18} color={colors.primary} />
+              <Text style={styles.testButtonText}>Send a test notification</Text>
+            </TouchableOpacity>
+
             <View style={{ height: spacing.xxxl }} />
           </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      {/* Feature Request Modal */}
+      <Modal
+        visible={showFeatureModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowFeatureModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalContainer}
+        >
+          <SafeAreaView style={styles.modalSafeArea}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity
+                onPress={() => setShowFeatureModal(false)}
+                disabled={featureSubmitting}
+              >
+                <Text style={styles.modalCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Request a Feature</Text>
+              <TouchableOpacity
+                onPress={handleSubmitFeatureRequest}
+                disabled={featureSubmitting || !featureMessage.trim()}
+              >
+                <Text
+                  style={[
+                    styles.modalSave,
+                    (featureSubmitting || !featureMessage.trim()) && styles.modalSaveDisabled,
+                  ]}
+                >
+                  {featureSubmitting ? 'Sending…' : 'Send'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.modalContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <Text style={styles.availabilityDescription}>
+                Have an idea for a feature or change that will make staying connected with your friends easier? We'd love to hear it. Your suggestions go straight to the team. (Aden and Evan)
+              </Text>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Your idea</Text>
+                <TextInput
+                  style={[styles.input, styles.featureTextArea]}
+                  value={featureMessage}
+                  onChangeText={setFeatureMessage}
+                  placeholder="What would you love to see in Link?"
+                  placeholderTextColor={colors.textMuted}
+                  multiline
+                  textAlignVertical="top"
+                  maxLength={1000}
+                  editable={!featureSubmitting}
+                  autoFocus
+                />
+                <Text style={styles.charCount}>{featureMessage.length}/1000</Text>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Your name (optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={featureName}
+                  onChangeText={setFeatureName}
+                  placeholder="Let us know who to thank"
+                  placeholderTextColor={colors.textMuted}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  maxLength={60}
+                  editable={!featureSubmitting}
+                />
+              </View>
+
+              {!isFeatureRequestConfigured() && (
+                <Text style={styles.featureHint}>
+                  Note: feature requests aren't enabled in this build yet.
+                </Text>
+              )}
+
+              <View style={{ height: spacing.xxxl }} />
+            </ScrollView>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -1058,6 +1238,9 @@ const styles = StyleSheet.create({
     ...typography.label,
     color: colors.primary,
   },
+  modalSaveDisabled: {
+    color: colors.textMuted,
+  },
   modalContent: {
     flex: 1,
     paddingHorizontal: spacing.xl,
@@ -1098,6 +1281,15 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 100,
     paddingTop: spacing.md,
+  },
+  featureTextArea: {
+    minHeight: 160,
+    paddingTop: spacing.md,
+  },
+  featureHint: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginTop: spacing.sm,
   },
 
   // Date picker styles
@@ -1334,5 +1526,19 @@ const styles = StyleSheet.create({
   presetButtonText: {
     ...typography.caption,
     color: colors.textSecondary,
+  },
+  testButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xxl,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.lg,
+  },
+  testButtonText: {
+    ...typography.label,
+    color: colors.primary,
   },
 });

@@ -1,6 +1,6 @@
 import type { Contact } from '../../types';
 import { updateContact } from '../../utils/contactsStorage';
-import { CONTACT_FREQUENCY_CONFIG } from '../../constants/contactFrequency';
+import { CONTACT_FREQUENCY_CONFIG, DEFAULT_CONTACT_FREQUENCY } from '../../constants/contactFrequency';
 import type { FrequencyKey, User } from './homeTypes';
 
 const CADENCE_PHRASE: Record<FrequencyKey, string> = {
@@ -41,6 +41,32 @@ export const FREQUENCY_URGENCY_MULTIPLIER: Record<FrequencyKey, number> = {
   quarterly: 0.9,
   biannual: 0.8,
   annually: 0.7,
+};
+
+// Pure cadence/recency score with NO random jitter. Single source of truth for
+// "how overdue is this contact." The home feed adds jitter on top for variety;
+// notifications use this raw value so the nudged name is the genuinely most
+// overdue person and stays stable between reschedules. Keep this in sync with
+// scoreContact in useConnectionSuggestions.ts (which = this + jitter).
+export const scoreContactStable = (c: Contact): number => {
+  const frequency = c.contactFrequency ?? DEFAULT_CONTACT_FREQUENCY;
+  const config = CONTACT_FREQUENCY_CONFIG[frequency];
+  const baseScore = FREQUENCY_BASE_SCORE[frequency];
+  const urgencyScale = FREQUENCY_URGENCY_MULTIPLIER[frequency];
+  const ds = daysSince(c.lastContacted);
+  const ratio = config.days ? ds / config.days : 0;
+  const approachingBoost = ratio < 1 ? ratio * 12 * urgencyScale : 0;
+  const overdueBoost = ratio >= 1 ? Math.min(ratio - 1, 1.5) * 20 * urgencyScale : 0;
+  const freshnessPenalty = ratio < 0.3 ? -5 * (1 - ratio / 0.3) : 0;
+  return baseScore + approachingBoost + overdueBoost + freshnessPenalty;
+};
+
+// Whether a contact is at or past their cadence (used to decide if a nudge is
+// even warranted — we stay silent when nobody is actually due).
+export const isContactDue = (c: Contact): boolean => {
+  const frequency = c.contactFrequency ?? DEFAULT_CONTACT_FREQUENCY;
+  const cadenceDays = CONTACT_FREQUENCY_CONFIG[frequency].days;
+  return daysSince(c.lastContacted) >= cadenceDays;
 };
 
 export const weightedRandomSelect = <T extends { score: number }>(items: T[], count = 1): T[] => {

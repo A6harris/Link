@@ -51,6 +51,17 @@ export interface CallAvailability {
 export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
 // ────────────────────────────────────────────────────────────
+// Notifications (local, on-device — see src/utils/notifications.ts)
+// ────────────────────────────────────────────────────────────
+
+export interface NotificationSettings {
+  enabled: boolean;        // master switch; off by default, requested only on opt-in
+  days: DayOfWeek[];       // which days a "reach out" nudge may fire
+  time: string;            // "HH:MM" (24-hour) — when the nudge fires on those days
+  birthdaysEnabled: boolean; // morning-of birthday reminders
+}
+
+// ────────────────────────────────────────────────────────────
 // Connection Suggestions
 // ────────────────────────────────────────────────────────────
 

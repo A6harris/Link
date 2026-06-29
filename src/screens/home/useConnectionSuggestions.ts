@@ -6,8 +6,7 @@ import { getOrCreateLocalUserId } from '../../utils/localUser';
 import { CONTACT_FREQUENCY_CONFIG, DEFAULT_CONTACT_FREQUENCY } from '../../constants/contactFrequency';
 import type { ConnectionSuggestion } from './homeTypes';
 import {
-  FREQUENCY_BASE_SCORE,
-  FREQUENCY_URGENCY_MULTIPLIER,
+  scoreContactStable,
   weightedRandomSelect,
   daysSince,
   asUser,
@@ -62,18 +61,10 @@ export function useLocalConnectionSuggestions() {
     setWeeklyGoal(goal);
   }, []);
 
+  // Home feed score = stable cadence/recency score + jitter for freshness.
+  // The stable half is shared with notifications (see homeUtils.scoreContactStable).
   const scoreContact = useCallback((c: Contact): number => {
-    const frequency = c.contactFrequency ?? DEFAULT_CONTACT_FREQUENCY;
-    const config = CONTACT_FREQUENCY_CONFIG[frequency];
-    const baseScore = FREQUENCY_BASE_SCORE[frequency];
-    const urgencyScale = FREQUENCY_URGENCY_MULTIPLIER[frequency];
-    const ds = daysSince(c.lastContacted);
-    const ratio = config.days ? ds / config.days : 0;
-    const approachingBoost = ratio < 1 ? ratio * 12 * urgencyScale : 0;
-    const overdueBoost = ratio >= 1 ? Math.min(ratio - 1, 1.5) * 20 * urgencyScale : 0;
-    const freshnessPenalty = ratio < 0.3 ? -5 * (1 - ratio / 0.3) : 0;
-    const jitter = Math.random() * 30;
-    return baseScore + approachingBoost + overdueBoost + freshnessPenalty + jitter;
+    return scoreContactStable(c) + Math.random() * 30;
   }, []);
 
   const compute = useCallback(async () => {
