@@ -30,6 +30,7 @@ import {
   shadow,
 } from '../../styles/theme';
 import { GradientButton } from '../../components';
+import { markContactedToday, formatLastContactedLong } from '../home/homeUtils';
 import { useEvents } from '../../hooks/useEvents';
 import { getOrCreateLocalUserId } from '../../utils/localUser';
 import type { EventType } from '../../types';
@@ -262,6 +263,16 @@ export default function FriendProfileScreen() {
     }
   };
 
+  const onMarkContacted = async () => {
+    if (!contact) return;
+    try {
+      const updated = await markContactedToday(contact);
+      setContact(updated);
+    } catch {
+      Alert.alert('Error', 'Failed to mark as contacted. Please try again.');
+    }
+  };
+
   const onDelete = () => {
     if (!contact) return;
     Alert.alert('Delete contact', 'This cannot be undone.', [
@@ -343,6 +354,24 @@ export default function FriendProfileScreen() {
               <View style={styles.editBadge}>
                 <Ionicons name="pencil" size={12} color={colors.textLight} />
               </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Contacted status + action */}
+          <View style={styles.contactedSection}>
+            <View style={styles.contactedInfo}>
+              <Ionicons name="time-outline" size={18} color={colors.textMuted} />
+              <Text style={styles.contactedStatus}>
+                {formatLastContactedLong(contact.lastContacted)}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.markContactedBtn}
+              onPress={onMarkContacted}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="checkmark-circle" size={18} color={colors.textLight} />
+              <Text style={styles.markContactedBtnText}>Mark as Contacted</Text>
             </TouchableOpacity>
           </View>
 
@@ -696,6 +725,39 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: colors.surface,
+  },
+
+  // Contacted status + action
+  contactedSection: {
+    marginHorizontal: spacing.xl,
+    marginBottom: spacing.lg,
+    padding: spacing.lg,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceMuted,
+    gap: spacing.md,
+  },
+  contactedInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  contactedStatus: {
+    ...typography.body,
+    color: colors.textSecondary,
+  },
+  markContactedBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primary,
+  },
+  markContactedBtnText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textLight,
   },
 
   // Form section

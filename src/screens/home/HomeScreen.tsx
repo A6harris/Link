@@ -9,6 +9,7 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { MainTabParamList, Contact } from '../../types';
 import { colors, spacing } from '../../styles/theme';
 import { updateContact } from '../../utils/contactsStorage';
+import { rescheduleNotifications } from '../../utils/notifications';
 import { Snackbar } from '../../components';
 import { useLocalConnectionSuggestions } from './useConnectionSuggestions';
 import { fullName, markContactedToday } from './homeUtils';
@@ -66,6 +67,8 @@ const HomeScreen: React.FC = () => {
     };
     await markContactedToday(contact);
     setUndo(snapshot);
+    // Contact is no longer due — rebuild the queue so a stale nudge can't fire.
+    rescheduleNotifications();
   }, [topSuggestion]);
 
   const handleUndo = useCallback(async () => {
@@ -78,6 +81,8 @@ const HomeScreen: React.FC = () => {
       } else {
         await refresh();
       }
+      // Restoring may make the contact due again — resync notifications.
+      rescheduleNotifications();
     } catch {
       Alert.alert('Something went wrong undoing the change.');
     }

@@ -6,14 +6,15 @@ import { getOrCreateLocalUserId } from '../../utils/localUser';
 import { CONTACT_FREQUENCY_CONFIG, DEFAULT_CONTACT_FREQUENCY } from '../../constants/contactFrequency';
 import type { ConnectionSuggestion } from './homeTypes';
 import {
-  FREQUENCY_BASE_SCORE,
-  FREQUENCY_URGENCY_MULTIPLIER,
+  scoreContactStable,
   weightedRandomSelect,
   daysSince,
   asUser,
 } from './homeUtils';
 import { getPeopleWithEvents } from './homeReasons';
-import { computeWeeklyGoal } from './weeklyGoal';
+import { resolveWeeklyGoal } from './weeklyGoal';
+import type { WeeklyGoal } from './homeTypes';
+import { loadWeeklyGoalSnapshot, saveWeeklyGoalSnapshot } from '../../utils/weeklyGoalStorage';
 
 // Builds the enriched suggestion shape from a contact. Shared by the initial
 // scoring pass and by promoting an arbitrary contact into the hero slot.
@@ -45,20 +46,25 @@ export function useLocalConnectionSuggestions() {
   const [allContacts, setAllContacts] = useState<Contact[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(false);
+  const [weeklyGoal, setWeeklyGoal] = useState<WeeklyGoal>({ goal: 0, done: 0, remaining: 0 });
   const lastSuggestedFriendIdRef = useRef<string | null>(null);
 
+  // Resolves the weekly goal against the persisted per-week target so the
+  // denominator stays stable all week (and "N more this week" drops by one on
+  // every contact). Persists a fresh target only when the week rolls over.
+  const syncWeeklyGoal = useCallback(async (contacts: Contact[]) => {
+    const snapshot = await loadWeeklyGoalSnapshot();
+    const { goal, snapshot: next } = resolveWeeklyGoal(contacts, snapshot);
+    if (!snapshot || snapshot.weekStart !== next.weekStart || snapshot.target !== next.target) {
+      await saveWeeklyGoalSnapshot(next);
+    }
+    setWeeklyGoal(goal);
+  }, []);
+
+  // Home feed score = stable cadence/recency score + jitter for freshness.
+  // The stable half is shared with notifications (see homeUtils.scoreContactStable).
   const scoreContact = useCallback((c: Contact): number => {
-    const frequency = c.contactFrequency ?? DEFAULT_CONTACT_FREQUENCY;
-    const config = CONTACT_FREQUENCY_CONFIG[frequency];
-    const baseScore = FREQUENCY_BASE_SCORE[frequency];
-    const urgencyScale = FREQUENCY_URGENCY_MULTIPLIER[frequency];
-    const ds = daysSince(c.lastContacted);
-    const ratio = config.days ? ds / config.days : 0;
-    const approachingBoost = ratio < 1 ? ratio * 12 * urgencyScale : 0;
-    const overdueBoost = ratio >= 1 ? Math.min(ratio - 1, 1.5) * 20 * urgencyScale : 0;
-    const freshnessPenalty = ratio < 0.3 ? -5 * (1 - ratio / 0.3) : 0;
-    const jitter = Math.random() * 30;
-    return baseScore + approachingBoost + overdueBoost + freshnessPenalty + jitter;
+    return scoreContactStable(c) + Math.random() * 30;
   }, []);
 
   const compute = useCallback(async () => {
@@ -66,6 +72,7 @@ export function useLocalConnectionSuggestions() {
     try {
       const contacts = await loadContacts();
       setAllContacts(contacts);
+      await syncWeeklyGoal(contacts);
 
       const userId = await getOrCreateLocalUserId();
       setEvents(userId ? await loadEvents(userId) : []);
@@ -87,15 +94,11 @@ export function useLocalConnectionSuggestions() {
     } finally {
       setLoading(false);
     }
-  }, [scoreContact]);
+  }, [scoreContact, syncWeeklyGoal]);
 
   useEffect(() => { compute(); }, [compute]);
 
   const topSuggestion = useMemo(() => suggestions[0], [suggestions]);
-
-  // Derived from the already-loaded contacts — no extra AsyncStorage read.
-  // Recomputes whenever contacts change (e.g. after marking someone contacted).
-  const weeklyGoal = useMemo(() => computeWeeklyGoal(allContacts), [allContacts]);
 
   // Contacts (other than the current hero) with an upcoming birthday or linked event.
   const peopleWithEvents = useMemo(
@@ -130,6 +133,7 @@ export function useLocalConnectionSuggestions() {
     try {
       const contacts = await loadContacts();
       setAllContacts(contacts);
+      await syncWeeklyGoal(contacts);
 
       const userId = await getOrCreateLocalUserId();
       setEvents(userId ? await loadEvents(userId) : []);
@@ -145,7 +149,7 @@ export function useLocalConnectionSuggestions() {
     } catch {
       // Leave current state in place on a transient read failure.
     }
-  }, []);
+  }, [syncWeeklyGoal]);
 
   // Puts a previously shown suggestion back on top (e.g. after an undo) and syncs
   // the in-memory contact with the restored storage values, without re-rolling
@@ -153,8 +157,13 @@ export function useLocalConnectionSuggestions() {
   const restoreSuggestion = useCallback((suggestion: ConnectionSuggestion, contact: Contact) => {
     lastSuggestedFriendIdRef.current = suggestion.friendId;
     setSuggestions(prev => [suggestion, ...prev.filter(s => s.friendId !== suggestion.friendId)]);
-    setAllContacts(prev => prev.map(c => (c.id === contact.id ? contact : c)));
-  }, []);
+    setAllContacts(prev => {
+      const next = prev.map(c => (c.id === contact.id ? contact : c));
+      // Resync the goal off the restored contacts so undo rolls `done` back too.
+      syncWeeklyGoal(next);
+      return next;
+    });
+  }, [syncWeeklyGoal]);
 
   return {
     loading,

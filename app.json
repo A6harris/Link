@@ -14,7 +14,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.evanaden.linkapp",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "minimumOsVersion": "16.0",
       "supportsTablet": false,
       "infoPlist": {
@@ -75,6 +75,12 @@
         {
           "photosPermission": "Link accesses your photo library to set profile photos for your contacts.",
           "cameraPermission": "Link uses the camera to set profile photos for your contacts."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#9B59B6"
         }
       ]
     ],
